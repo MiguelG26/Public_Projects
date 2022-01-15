@@ -57,8 +57,8 @@
 }
 
 .main-title {
-  color: #3a3a3a;                   /*#Only relevant for the bar*/
-  border-left: 20px solid #385d7f;  /*#Only relevant for the bar*/
+  color: #959a99;                   /*#Only relevant for the bar*/
+  border-left: 20px solid #e1e3e2;  /*#Only relevant for the bar*/
   height: 60px;                     /*#Only relevant for the bar*/
 
   padding-top: 10px;                /*#Only relevant for the text*/
@@ -76,8 +76,8 @@
 }
 
 .product {
-  background: #385d7f;
-  color: #ffffff;
+  background: #e1e3e2;
+  color: #959a99;
   padding: 10px;                  /*#Only relevant for the content/text*/
   #position: relative;
   #margin-bottom: 25px;

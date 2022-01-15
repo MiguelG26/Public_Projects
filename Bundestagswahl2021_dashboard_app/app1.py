@@ -10,41 +10,21 @@ from datetime import date, timedelta
 from dash.dependencies import Input, Output
 
 app = dash.Dash(__name__, suppress_callback_exceptions=True)
-server = app.server# only for heroku
+server = app.server
 
 #To get the data
 df = pd.read_excel('ergebnisse_2021_clean.xlsx')
-'''
-df = pd.read_excel('ergebnisse_2021.xlsx')
-df=df[['Gebietsart', 'Gebietsname', 'Gruppenart', 'Gruppenname',
-       'Stimme', 'Anzahl', 'Prozent', 'VorpAnzahl',
-       'VorpProzent', 'DiffProzent', 'DiffProzentPkt', 'UegGebietsnummer', 'Gebietsnummer']]
 
-#to get the sum CDU+CSU -> CDU/CSU
-df_CDU=df[(df['Gruppenname']=="CDU")|(df['Gruppenname']=="CSU")].groupby(
-    ['Gebietsart', 'Gebietsname', 'Gruppenart','Stimme']).sum()
-df_CDU=df_CDU.reset_index()
-df_CDU['Gruppenname']="CDU/CSU"
-df_CDU=df_CDU[['Gebietsart', 'Gebietsname', 'Gruppenart', 'Gruppenname', 'Stimme',
-       'Anzahl', 'Prozent', 'VorpAnzahl', 'VorpProzent', 'DiffProzent',
-       'DiffProzentPkt','UegGebietsnummer', 'Gebietsnummer']]
-df = df.append(df_CDU, ignore_index=True)
-
-#to remove the CDU & CSU lines
-indexNames = df[(df['Gruppenname'] =="CDU") | (df['Gruppenname'] =="CSU") ].index
-df=df.drop(indexNames)
-df['joker']=df['Gebietsname']+"_"+df['Gruppenart']+"_"+df['Stimme'].astype(str)
-
-#to identify the winning parties
-df['max']= df['Prozent']==df['joker'].apply(lambda y:df[df["joker"]==y].max()["Prozent"])
-'''
 gebietsart_options = [{'label': 'All', 'value': 'All'}]
 for gebietsart in df['Gebietsart'].unique():
     gebietsart_options.append({'label':str(gebietsart),'value':gebietsart})
 del gebietsart_options[0]
 
-mymap={'CDU/CSU':'#004B76','SPD':'#C0003D','GRÜNE':'#008549','FDP':'#F7BC3D','AfD':'#80CDEC',
-       'DIE LINKE':'#5F316E','Sonstige':'#BEC5C9'}
+#mymap={'CDU/CSU':'#004B76','SPD':'#C0003D','GRÜNE':'#008549','FDP':'#F7BC3D','AfD':'#80CDEC',
+#       'DIE LINKE':'#5F316E','Sonstige':'#BEC5C9'}
+
+mymap={'CDU/CSU':'#004B76','SPD':'#f74557','GRÜNE':'#8bd999','FDP':'#F7BC3D','AfD':'#80CDEC',
+       'DIE LINKE':'#9768a6','Sonstige':'#BEC5C9'}
 
 #######################################################################
 #To create the bldf: BundeLänder DataFrame
@@ -142,7 +122,7 @@ rectangle = html.Div([
                 html.P(
                     "Dieses Dashboard der Bundestagswahlen 2021 in Deutschland wurde ausschließlich in Phyton \
                     mit der Dash Library von Plotly und ganz viel Liebe ♡ erstellt",
-                    style={"color": "#ffffff",'fontSize': 15},
+                    style={'fontSize': 15, 'font-weight':"bold"},
                     className="row",
                 )
             ],className="product",)
@@ -163,14 +143,14 @@ filters=html.Div([
                 html.Div([
                     html.P(
                     dcc.Dropdown(id='Gebietsart_picker',options=gebietsart_options,value='Bund'),
-                    style= {'padding-right': '60px', 'font-size': '15px'}
+                    style= {'padding-right': '60px', 'font-size': '15px', 'color':'#959a99'}
                     ),
                     ],className="three columns"),
 
                 html.Div([
                     html.P(
                     dcc.Dropdown(id='Gebietsname_picker', value="Bundesgebiet"),
-                    style= {'padding-right': '60px', 'font-size': '15px'}
+                    style= {'padding-right': '60px', 'font-size': '15px','color':'#959a99'}
                     ),
                     ],className="three columns"),
             ],style={'width':'100%','display':'inline-block', 'background': '#ffffff'}),
@@ -181,7 +161,7 @@ header = html.Div([
                 [
                     html.Div(
                         [
-                            html.H4("Ergebnisse der Bundestagswahl 2021", style= {'display': 'flex','align-items': 'right'}),
+                            html.H4("Ergebnisse der Bundestagswahl 2021", style= {'display': 'flex','align-items': 'right','font-weight':"bold"}),
                         ],className="twelve columns main-title",
                     )
                 ],style={'width':'100%','display':'inline-block'}
@@ -214,7 +194,7 @@ body=html.Div([
             html.Div([
                     html.P(
                         "Quelle: https://www.bundeswahlleiter.de/bundestagswahlen/2021/ergebnisse/opendata/csv/kerg2.csv",
-                        style={"color": "#ffffff",'fontSize': 12},
+                        style={"color": "#959a99",'fontSize': 12},
                         className="row",
                     )
             ],className="product",)
@@ -225,9 +205,9 @@ body=html.Div([
 
 app.layout = html.Div([body,header],className="page")
 
-#"""
+#######################################################################################################################################
 #  Callbacks
-#"""
+#######################################################################################################################################
 
 #####Gebietsname_picker
 @app.callback(
@@ -269,9 +249,9 @@ def upd_Gr_1_stimme(gebietsart, gebietsname, stimme=1):
            marker_color=colors, textposition='auto',),
         ],
         'layout':go.Layout(template="simple_white", showlegend=False,
-                  title ={'text': '<b>1. Stimme</b>'+ '<br> '},
+                  title ={'text': '<b>1. Stimme</b>'+ '<br> ', 'font_color':'#959a99'},
                   xaxis =dict(showticklabels=False,showline=False,ticks='' ),
-                  yaxis =dict(showline=False, zeroline = False,ticks=''),
+                  yaxis =dict(showline=False, zeroline = False,ticks='',color='#959a99'),
                     )
     }
 
@@ -285,12 +265,12 @@ def upd_Gr_2_stimme(gebietsart, gebietsname, stimme=2):
         'data':[
             go.Bar(y=df1['Gruppenname'] +"  ", x=df1['Prozent'],
            text=df1['Anzahl_M'].astype(str)+" Mio. Stimmen | "+ df1['Prozent'].astype(str) +"%",orientation="h",
-           marker_color=colors,textposition='auto',),
+           marker_color=colors,textposition='auto'),
         ],
         'layout':go.Layout(template="simple_white",
-                  title ={'text': '<b>2. Stimme</b>'+ '<br> '},
+                  title ={'text': '<b>2. Stimme</b>'+ '<br> ', 'font_color':'#959a99'},
                   xaxis =dict(showticklabels=False,showline=False,ticks='' ),
-                  yaxis =dict(showline=False, zeroline = False,ticks=''),
+                  yaxis =dict(showline=False, zeroline = False,ticks='',color='#959a99'),
                     )
     }
 
@@ -307,9 +287,9 @@ def upd_Gr_sitzplaetze(gebietsname):
            marker_color=colors,textposition='auto',),
         ],
         'layout':go.Layout(template="simple_white",
-                  title ={'text': '<b>Sitzplätze (Direktmandate) pro Partei</b>'+ '<br> '},
+                  title ={'text': '<b>Sitzplätze (Direktmandate) pro Partei</b>'+ '<br> ', 'font_color':'#959a99'},
                   xaxis =dict(showticklabels=False,showline=False,ticks='' ),
-                  yaxis =dict(showline=False, zeroline = False,ticks=''),
+                  yaxis =dict(showline=False, zeroline = False,ticks='',color='#959a99'),
                     )
     }
 
@@ -325,9 +305,9 @@ def upd_Gr_sitzplaetze2(gebietsname):
            marker_color=colors,textposition='auto',),
         ],
         'layout':go.Layout(template="simple_white", height=600,
-                  title ={'text': '<b>Partei mit dem meisten Sitzplätze (Direktmandate) pro Bundesland</b>'+ '<br> '},
+                  title ={'text': '<b>Partei mit dem meisten Sitzplätze (Direktmandate) pro Bundesland</b>'+ '<br> ', 'font_color':'#959a99'},
                   xaxis =dict(showticklabels=False,showline=False,ticks='' ),
-                  yaxis =dict(showline=False, zeroline = False,ticks=''),
+                  yaxis =dict(showline=False, zeroline = False,ticks='',color='#959a99'),
                     )
     }
 
