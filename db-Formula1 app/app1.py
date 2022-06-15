@@ -41,7 +41,7 @@ server = app.server
 ####################
 ######## To get the files from the internet
 ####################
-
+'''
 url = 'http://ergast.com/downloads/f1db_csv.zip'
 file_name = 'f1db_csv.zip'
 
@@ -69,7 +69,7 @@ with zipfile.ZipFile(file_name) as zf:
 
 # deleting the zipfile from the directory
 #os.remove('f1db_csv.zip')
-
+'''
 # loading data from the file
 seasons = pd.read_csv('seasons.csv')
 circuits = pd.read_csv('circuits.csv')
@@ -91,6 +91,10 @@ constructor_standings = pd.read_csv('constructor_standings.csv')
 results = pd.read_csv('results.csv')
 driver_standings = pd.read_csv('driver_standings.csv')
 #lap_times = pd.read_csv('lap_times.csv')
+sprint_results= pd.read_csv('sprint_results.csv', names=['resultId', 'raceId', 'driverId', 'constructorId',
+        'number', 'sr_grid','position', 'positionText', 'sr_positionOrder', 'sr_points', 'sr_laps', 'sr_time',
+       'milliseconds', 'fastestLap', 'fastestLapTime', 'statusId'],header=0)
+sprint_results=sprint_results[['raceId','driverId','sr_grid','sr_laps','sr_time','sr_points']]
 results = results.rename(columns={'rank': 'fastestLapRank'})
 
 ####################
@@ -102,6 +106,10 @@ results = results.rename(columns={'rank': 'fastestLapRank'})
 df= pd.merge(results, races, on='raceId')
 df= pd.merge(df, drivers, on='driverId')
 df= pd.merge(df, constructors, on='constructorId')
+df= pd.merge(df, sprint_results, on=['raceId','driverId'],how='left')
+df['sr_points'] = df['sr_points'].fillna(0)
+df['points']=df['points']+df['sr_points']
+
 df = df.drop(['resultId', 'number','position', 'positionText', #'time',
               'raceUrl',
               'driverRef','driverCode','driverUrl',
@@ -124,7 +132,8 @@ df=df[['raceId','raceYear', 'raceRound', 'raceName', 'raceDate', 'raceTime',
        'constructorName', 'constructorNationality',
        'grid', 'positionOrder',
        'points', 'laps', 'time','milliseconds', 'fastestLap', 'fastestLapRank',
-       'fastestLapTime', 'fastestLapSpeed', 'statusId']]
+       'fastestLapTime', 'fastestLapSpeed', 'statusId',
+       'sr_grid','sr_laps','sr_time','sr_points']]
 
 #lastqualiId=qualifying['raceId'][qualifying['raceId']==qualifying['raceId'].max()].iloc[0]
 #lastqualyrace=races['raceDate'][races['raceId']==lastqualiId].values[0]
@@ -179,6 +188,18 @@ dfy['raceDate']=pd.to_datetime(dfy['raceDate'])
 ###########################
 ####### For Constructor Tabs
 ###########################
+df0c= df.groupby(['raceYear','constructorName','constructorNationality'])['points'].sum().reset_index().sort_values(
+                                    ['raceYear','points'], ascending=[False,False]).groupby('raceYear').head(3)
+df0c['count'] = df0c['points'].ne(df0c['raceYear'].shift(1)).cumsum()
+
+#to identify the winning drivers
+df0c['place']= df0c['count']-df0c['raceYear'].apply(lambda y:df0c[df0c["raceYear"]==y].min()["count"])+1
+df0c=df0c.drop(['count'], axis = 1)
+df0c['raceYear_place']=df0c['raceYear'].astype(str)+"_"+df0c['place'].astype(str)
+
+mymap={1:'#e10600',2:'#e3a19f',3:'#e3dcdc'}
+df0c['color']=df0c['place'].map(mymap)
+df0c=df0c.sort_values(by = 'raceYear', ascending=True)
 
 ####### For Charts Place per Season
 #to get the data frame with Constructor's place per season
@@ -253,14 +274,27 @@ tickfont=12
 barsColor = "#f55b68"
 barsColor = '#385d7f'
 barsColor = '#e10600'
+style_dropdown= {'font-size': '14px', 'color':'#808080','font-family':"system-ui",}
+
+rectangle = html.Div([
+        html.Div([
+                html.P(
+                    "This Dashboard was made purely in Python using the Dash library from Plotly & with tons of love ♡",
+                    style={'fontSize': 14},
+                    className="row",
+                )
+            ],className="legend",)
+    ],style={'width':'100%','display':'inline-block'})
+
 
 app.layout = html.Div([
     html.Div([
-        html.Div([html.Img(src=app.get_asset_url("f1_logo.jpg"),className='logo')],
-                  style= {'width': '8%', 'display': 'inline-block'}),
+        #html.Div([html.Img(src=app.get_asset_url("f1_logo.jpg"),className='logo')],
+        #          style= {'width': '8%', 'display': 'inline-block'}),
         html.Div([html.H3("Miguel's Formula 1 Dashboard",className='dashboard-name')],
-                 style= {'width': '92%', 'display': 'inline-block'}),
+                 style= {'width': '100%', 'display': 'inline-block'}),
     ],className='dashboard-name'),
+    rectangle,
     html.Br([],style= {'color': '#ffffff'}),
     html.Div([
     html.Div(id="mainTabsDiv",
@@ -278,7 +312,7 @@ app.layout = html.Div([
     html.Br([]),
     html.Div(
         [dcc.Tabs(id="secondaryTabs",vertical=True, className='custom-tabs')]
-        ,style= {'width': '15%', 'display': 'inline-block'}),
+        ,style= {'width': '18%', 'display': 'inline-block'}),
     html.Div([
         html.Div(id='filters', children=[
 
@@ -306,7 +340,7 @@ app.layout = html.Div([
                         dcc.Dropdown(
                             id='Dropdown_Nationalities',
                             value='All',
-                            style= {'font-size': '14px', 'color':'#808080',})
+                            style= style_dropdown)
                     ],style= {'width': '60%', 'display': 'inline-block',}),###################
                 ],style= {'width': '33%', 'display': 'inline-block'}),
                 html.Div([
@@ -337,7 +371,7 @@ app.layout = html.Div([
                         dcc.Dropdown(
                             id='DropdownDriver1',
                             value='Lewis Hamilton',
-                            style= {'font-size': '14px', 'color':'#808080',})
+                            style= style_dropdown)
                     ],style= {'width': '60%', 'display': 'inline-block',}),###################
                 ],style= {'width': '50%', 'display': 'inline-block'}),
                 html.Div([
@@ -347,7 +381,7 @@ app.layout = html.Div([
                         dcc.Dropdown(
                             id='DropdownDriver2',
                             value='Sergio Pérez',
-                            style= {'font-size': '14px', 'color':'#808080',})
+                            style= style_dropdown)
                     ],style= {'width': '60%', 'display': 'inline-block',}),###################
                 ],style= {'width': '50%', 'display': 'inline-block'}),
             ],style= {'display': 'None'}),
@@ -361,7 +395,7 @@ app.layout = html.Div([
                         dcc.Dropdown(
                             id='DropdownConstructor1',
                             value='Mercedes',
-                            style= {'font-size': '14px', 'color':'#808080',})
+                            style= style_dropdown)
                     ],style= {'width': '60%', 'display': 'inline-block',}),###################
                 ],style= {'width': '50%', 'display': 'inline-block'}),
                 html.Div([
@@ -371,7 +405,7 @@ app.layout = html.Div([
                         dcc.Dropdown(
                             id='DropdownConstructor2',
                             value='Red Bull',
-                            style= {'font-size': '14px', 'color':'#808080',})
+                            style= style_dropdown)
                     ],style= {'width': '60%', 'display': 'inline-block',}),###################
                 ],style= {'width': '50%', 'display': 'inline-block'}),
             ],style= {'display': 'None'}),
@@ -385,7 +419,7 @@ app.layout = html.Div([
                         dcc.Dropdown(
                             id='DropdownDriverCPS',
                             value='Sergio Pérez',
-                            style= {'font-size': '14px', 'color':'#808080',})
+                            style= style_dropdown)
                     ],style= {'width': '60%', 'display': 'inline-block',}),###################
                 ],style= {'width': '40%', 'display': 'inline-block'}),
                 html.Div([
@@ -421,7 +455,7 @@ app.layout = html.Div([
                         dcc.Dropdown(
                             id='DropdownConstructorDPS',
                             value='Mercedes',
-                            style= {'font-size': '14px', 'color':'#808080',})
+                            style= style_dropdown)
                     ],style= {'width': '60%', 'display': 'inline-block',}),###################
                 ],style= {'width': '40%', 'display': 'inline-block'}),
                 html.Div([
@@ -485,40 +519,40 @@ app.layout = html.Div([
 
 
         ])
-    ],style= {'width': '85%', 'display': 'inline-block'}),
+    ],style= {'width': '82%', 'display': 'inline-block'}),
 
     html.Div(id='tables', children=[
                 html.Div([
                     html.Div([
                         html.H4('Select a year:',
-                              style= {'color':'#ffffff','font-weight':"bold", 'width': '33%', 'display': 'inline-block'}),
+                              style= {'color':'#ffffff','width': '33%', 'display': 'inline-block'}),
                         html.Div([
                             dcc.Dropdown(
                                 id='Dropdown1',
                                 options=years,
                                 value=2022,
-                                style= {'font-size': '14px', 'color':'#808080',})
+                                style= style_dropdown)
                         ],style= {'width': '60%', 'display': 'inline-block',}),###################
                     ],style= {'width': '33%', 'display': 'inline-block'}),
                     html.Div([
                         html.H4('Select Topic:',
-                              style= {'color':'#ffffff','font-weight':"bold", 'width': '33%', 'display': 'inline-block'}),
+                              style= {'color':'#ffffff', 'width': '33%', 'display': 'inline-block'}),
                         html.Div([
                             dcc.Dropdown(
                                 id='Dropdown2',
                                 options=topics,
                                 value='RACES',
-                                style= {'font-size': '14px', 'color':'#808080',})
+                                style= style_dropdown)
                         ],style= {'width': '60%', 'display': 'inline-block',}),###################
                     ],style= {'width': '33%', 'display': 'inline-block'}),
                     html.Div([
                         html.H4('Select:',
-                              style= {'color':'#ffffff','font-weight':"bold", 'width': '33%', 'display': 'inline-block'}),
+                              style= {'color':'#ffffff', 'width': '33%', 'display': 'inline-block'}),
                         html.Div([
                             dcc.Dropdown(
                                 id='Dropdown3',
                                 value='All',
-                                style= {'font-size': '14px', 'color':'#808080',})
+                                style= style_dropdown)
                         ],style= {'width': '60%', 'display': 'inline-block',}),###################
                     ],style= {'width': '33%', 'display': 'inline-block'}),
                 ], style={
@@ -541,11 +575,11 @@ app.layout = html.Div([
                                     dcc.Tabs(id="raceTabs",
                                         value = "RACE RESULT",
                                         children=[
-                                        dcc.Tab(label='RACE RESULT', value='RACE RESULT',className='custom-tab'),
-                                        dcc.Tab(label='FASTEST LAPS', value='FASTEST LAPS',className='custom-tab'),
-                                        dcc.Tab(label='PIT STOP SUMMARY', value='PIT STOP SUMMARY',className='custom-tab'),
-                                        dcc.Tab(label='STARTING GRID', value='STARTING GRID',className='custom-tab'),
-                                        dcc.Tab(label='QUALIFYING', value='QUALIFYING',className='custom-tab'),
+                                        dcc.Tab(label='RACE RESULT', value='RACE RESULT',className='custom-tab',selected_className='custom-tab--selected'),
+                                        dcc.Tab(label='FASTEST LAPS', value='FASTEST LAPS',className='custom-tab',selected_className='custom-tab--selected'),
+                                        dcc.Tab(label='PIT STOP SUMMARY', value='PIT STOP SUMMARY',className='custom-tab',selected_className='custom-tab--selected'),
+                                        dcc.Tab(label='STARTING GRID', value='STARTING GRID',className='custom-tab',selected_className='custom-tab--selected'),
+                                        dcc.Tab(label='QUALIFYING', value='QUALIFYING',className='custom-tab',selected_className='custom-tab--selected'),
                                         #dcc.Tab(label='PRACTICE 3', value='PRACTICE 3',className='custom-tab'),
                                         #dcc.Tab(label='PRACTICE 2', value='PRACTICE 2',className='custom-tab'),
                                         #dcc.Tab(label='PRACTICE 1', value='PRACTICE 1',className='custom-tab')
@@ -556,11 +590,22 @@ app.layout = html.Div([
                 html.Div([
                     html.Div(id="maintable2", children=[create_table("dashtable2")],style= {'display': 'none'}),
                     html.Div(id="Chart3Div", children=[dcc.Graph(id='Chart3'),],style= {'display': 'none'}),
-                ],style= {'width': '83%', 'display': 'inline-block'})
-
+                ],style= {'width': '83%', 'display': 'inline-block'}),
             ], style= {'width': '100%','display': 'None'})
 
-],className="cuerpo")
+    ],className="cuerpo"),
+    html.Br([]),
+    html.Br([]),
+    html.Div([
+        html.Div([
+            html.P("Data source: http://ergast.com/downloads",
+                         style={'fontSize': 12},
+                         className="row"),
+            html.P("Code Github: https://github.com/MiguelG26/Public_Projects/tree/master/db-Formula1%20app",
+                         style={'fontSize': 12},
+                         className="row")
+        ],className='legend2'),
+    ],style={'width':'100%','display':'inline-block'}),
 ])
 
 
@@ -571,28 +616,29 @@ app.layout = html.Div([
 def funtion(tab):
     if tab == 'Driver Results':
         children=[
-            dcc.Tab(label='Championship Podiums', value='Championship Podiums',className='custom-tab'),
-            dcc.Tab(label='Race Podiums', value='Race Podiums',className='custom-tab'),
-            dcc.Tab(label='Place per Season', value='Place per Season',className='custom-tab'),
-            dcc.Tab(label='Constructors per Season', value='Constructors per Season',className='custom-tab'),
-            dcc.Tab(label='Winners per Season', value='Winners per Season',className='custom-tab'),
-            dcc.Tab(label='Youngest Drivers', value='Youngest Drivers',className='custom-tab'),
+            dcc.Tab(label='Championship Podiums', value='Championship Podiums',className='custom-tab',selected_className='custom-tab--selected'),
+            dcc.Tab(label='Race Podiums', value='Race Podiums',className='custom-tab',selected_className='custom-tab--selected'),
+            dcc.Tab(label='Place per Season', value='Place per Season',className='custom-tab',selected_className='custom-tab--selected'),
+            dcc.Tab(label='Constructors per Season', value='Constructors per Season',className='custom-tab',selected_className='custom-tab--selected'),
+            dcc.Tab(label='Winners per Season', value='Winners per Season',className='custom-tab',selected_className='custom-tab--selected'),
+            dcc.Tab(label='Youngest Drivers', value='Youngest Drivers',className='custom-tab',selected_className='custom-tab--selected'),
         ]
         value='Championship Podiums'
 
     elif tab == 'Constructor Results':
         children=[
-            dcc.Tab(label='Championship Podiums', value='Championship Podiums',className='custom-tab'),
-            dcc.Tab(label='Race Podiums', value='Race Podiums',className='custom-tab'),
-            dcc.Tab(label='Place per Season', value='Place per Season',className='custom-tab'),
-            dcc.Tab(label='Drivers per Season', value='Drivers per Season',className='custom-tab'),
+            dcc.Tab(label='Championship Podiums', value='Championship Podiums',className='custom-tab',selected_className='custom-tab--selected'),
+            dcc.Tab(label='Race Podiums', value='Race Podiums',className='custom-tab',selected_className='custom-tab--selected'),
+            dcc.Tab(label='Place per Season', value='Place per Season',className='custom-tab',selected_className='custom-tab--selected'),
+            dcc.Tab(label='Drivers per Season', value='Drivers per Season',className='custom-tab',selected_className='custom-tab--selected'),
+            dcc.Tab(label='Winners per Season', value='Winners per Season',className='custom-tab',selected_className='custom-tab--selected'),
         ]
         value='Championship Podiums'
 
     elif tab == 'Nationality Results':
         children=[
-            dcc.Tab(label='Championship Podiums', value='Championship Podiums',className='custom-tab'),
-            dcc.Tab(label='Race Podiums', value='Race Podiums',className='custom-tab'),
+            dcc.Tab(label='Championship Podiums', value='Championship Podiums',className='custom-tab',selected_className='custom-tab--selected'),
+            dcc.Tab(label='Race Podiums', value='Race Podiums',className='custom-tab',selected_className='custom-tab--selected'),
         ]
         value='Championship Podiums'
 
@@ -769,6 +815,7 @@ def funtion(tab, tab2):
 def Chart1(Checklist_options, nationality,observations, years, tab,
            tab2,drivername1, drivername2, constructorName1, constructorName2,
            driverNameCPS, yearsCPS, constructorNameDPS, yearsDPS):
+
     style  = {'display': 'none'}
     children = ""
     figure = {}
@@ -803,6 +850,7 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                           template="simple_white", showlegend=False,
                           xaxis =dict(visible=False),
                           yaxis =dict(showline=False,ticks='',color='#808080'),
+                          font_family="system-ui"
                             )
                     }
         if tab2 == 'Race Podiums':
@@ -833,6 +881,7 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                           template="simple_white", showlegend=False,
                           xaxis =dict(visible=False),
                           yaxis =dict(showline=False,ticks='',color='#808080'),
+                          font_family="system-ui"
                             )
                     }
         if tab2 == 'Place per Season':
@@ -864,6 +913,7 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                           xaxis =xaxisDict,
                           yaxis =dict(showline=False,ticks='',range=[20.1, 0], color='#808080',
                                       zeroline=True, zerolinecolor='#ededed',zerolinewidth=0.5),
+                          font_family="system-ui"
                           )
                     }
         if tab2 == 'Constructors per Season':
@@ -903,7 +953,8 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                 'layout':go.Layout(
                           height=figHeight+200, template="simple_white", showlegend=False,
                           xaxis =xaxisDict,
-                          yaxis =dict(showline=False,ticks='',color='#808080',tickfont=dict(size=tickFont))
+                          yaxis =dict(showline=False,ticks='',color='#808080',tickfont=dict(size=tickFont)),
+                          font_family="system-ui"
                           )
                     }
         if tab2 == 'Winners per Season':
@@ -916,8 +967,8 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                 style  = {'display': 'none'}
                 children = "### Upsi... There is no data with the selected parameters!"
 
-            tickFont = 10
-            figHeight=300+len(df1)*20
+            tickFont = 12
+            figHeight=400+len(df1)*25
 
             figure={
                 'data':[
@@ -930,7 +981,8 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                 'layout':go.Layout(height=figHeight, template="simple_white", showlegend=False,
                           xaxis =dict(showline=False, ticks='',color='#808080',title="Points"),
                           yaxis =dict(showline=False,ticks='',color='#808080',title="Season_Place",tickfont=dict(size=tickFont)),
-                          title=dict(text='<b>Drivers in first 3 places per season</b>',font_color='#808080'))
+                          title=dict(text='<b>Drivers in first 3 places per season</b>',font_color='#808080'),
+                          font_family="system-ui")
                     }
         if tab2 == 'Youngest Drivers':
             style  = {'display': 'block'}
@@ -952,7 +1004,8 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                 'layout':go.Layout(height=400,template="simple_white", showlegend=False,
                           xaxis =dict(showline=False, ticks='',color='#808080',side='top',title="Age", range=[0,30]),
                           yaxis =dict(showline=False,ticks='',color='#808080'),
-                          title=dict(text='<b>Youngest drivers winning a race</b>',font_color='#808080'))
+                          title=dict(text='<b>Youngest drivers winning a race</b>',font_color='#808080'),
+                          font_family="system-ui")
                     }
 
             style2  = {'display': 'block'}
@@ -981,7 +1034,8 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                 'layout':go.Layout(height=400, template="simple_white", showlegend=False,
                                   xaxis =dict(showline=False, ticks='',color='#808080',side='top',title="Age", range=[0,30]),
                                   yaxis =dict(showline=False,ticks='',color='#808080'),
-                                  title=dict(text='<b>Youngest drivers winning a Championship</b>',font_color='#808080'))
+                                  title=dict(text='<b>Youngest drivers winning a Championship</b>',font_color='#808080'),
+                                  font_family="system-ui")
                     }
 
 
@@ -1018,6 +1072,7 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                           template="simple_white", showlegend=False,
                           xaxis =dict(visible=False),
                           yaxis =dict(showline=False,ticks='',color='#808080'),
+                          font_family="system-ui"
                             )
                 }
         if tab2 == 'Race Podiums':
@@ -1049,6 +1104,7 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                           template="simple_white", showlegend=False,
                           xaxis =dict(visible=False),
                           yaxis =dict(showline=False,ticks='',color='#808080'),
+                          font_family="system-ui"
                             )
                     }
         if tab2 == 'Place per Season':
@@ -1080,6 +1136,7 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                           xaxis =xaxisDict,
                           yaxis =dict(showline=False,ticks='',range=[20.1, 0],color='#808080',
                                       zeroline=True, zerolinecolor='#ededed',zerolinewidth=0.5),
+                          font_family="system-ui"
                           )
                 }
         if tab2 == 'Drivers per Season':
@@ -1120,9 +1177,37 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                 'layout':go.Layout(
                           height=figHeight+200, width=700,template="simple_white", showlegend=False,
                           xaxis =xaxisDict,
-                          yaxis =dict(showline=False,ticks='',color='#808080',tickfont=dict(size=tickFont))
+                          yaxis =dict(showline=False,ticks='',color='#808080',tickfont=dict(size=tickFont)),
+                          font_family="system-ui"
                           )
             }
+        if tab2 == 'Winners per Season':
+            df1=df0c[(df0c['raceYear']>=years[0])&(df0c['raceYear']<=years[1])]
+
+            if len(df1)> 0:
+                style  = {'display': 'block'}
+                children = ""
+            else:
+                style  = {'display': 'none'}
+                children = "### Upsi... There is no data with the selected parameters!"
+
+            tickFont = 12
+            figHeight=400+len(df1)*25
+
+            figure={
+                'data':[
+                    go.Bar(y=[df1['raceYear'], df1['place']],
+                           x=df1['points'],
+                             text=df1['constructorName']+ " | " + df1['constructorNationality']
+                                   +" | "+"Points: "+df1['points'].astype(str),
+                             marker_color=df1['color'],orientation="h",textposition='auto', hoverinfo = 'text')
+                ],
+                'layout':go.Layout(height=figHeight, template="simple_white", showlegend=False,
+                          xaxis =dict(showline=False, ticks='',color='#808080',title="Points"),
+                          yaxis =dict(showline=False,ticks='',color='#808080',title="Season_Place",tickfont=dict(size=tickFont)),
+                          title=dict(text='<b>Constructors in first 3 places per season</b>',font_color='#808080'),
+                          font_family="system-ui")
+                    }
 
 
     elif tab == 'Nationality Results':
@@ -1153,6 +1238,7 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                           template="simple_white", showlegend=False,
                           xaxis =dict(visible=False),
                           yaxis =dict(showline=False,ticks='',color='#808080'),
+                          font_family="system-ui"
                             )
                 }
         if tab2 == 'Race Podiums':
@@ -1181,6 +1267,7 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                           template="simple_white", showlegend=False,
                           xaxis =dict(visible=False),
                           yaxis =dict(showline=False,ticks='',color='#808080'),
+                          font_family="system-ui"
                             )
                     }
 
@@ -1400,13 +1487,16 @@ def funtion(year, topic, subtopic, tab):
      Output('Dropdown3', 'value'),
      Output('Dropdown3', 'style')],
     [Input('Dropdown1', 'value'),
-     Input('Dropdown2', 'value')])
-def funtion(year, topic):
+     Input('Dropdown2', 'value'),
+     Input('Dropdown3', 'value')])
+def funtion(year, topic, subtopic):
     value="All"
-    style={'display': 'block'}
+    style={'font-size': '14px', 'color':'#808080','font-family':"system-ui",'display': 'block'}
     df1=df.copy()
     df1=df1[df1['raceYear']==year]
     if topic == "RACES":
+        if len(df1[df1["raceName"]==subtopic])>0:
+            value = subtopic
         options=np.array(df1.groupby(['raceRound','raceName'])['points'].sum().reset_index()['raceName'])
         dictionary = [{'label': 'All', 'value': 'All'}]
         for item in options:
@@ -1414,7 +1504,8 @@ def funtion(year, topic):
         return dictionary, value, style
 
     if topic == "DRIVERS":
-        #value="Sergio Pérez"
+        if len(df1[df1["driverName"]==subtopic])>0:
+            value = subtopic
         options=df1['driverName'].sort_values().unique()
         dictionary = [{'label': 'All', 'value': 'All'}]
         for item in options:
@@ -1422,6 +1513,8 @@ def funtion(year, topic):
         return dictionary, value, style
 
     if topic == "TEAMS":
+        if len(df1[df1["constructorName"]==subtopic])>0:
+            value = subtopic
         options=df1['constructorName'].sort_values().unique()
         dictionary = [{'label': 'All', 'value': 'All'}]
         for item in options:
