@@ -146,6 +146,7 @@ df=df[['raceId','raceYear', 'raceRound', 'raceName', 'raceDate', 'raceTime',
 ###########################
 ####### For driver Tabs
 ###########################
+
 df0= df.groupby(['raceYear','driverName','driverNationality','driverDob','driverId','constructorName','constructorNationality'])['points'].sum().reset_index().sort_values(
                                     ['raceYear','points'], ascending=[False,False]).groupby('raceYear').head(3)
 df0['count'] = df0['points'].ne(df0['raceYear'].shift(1)).cumsum()
@@ -157,7 +158,7 @@ df0['raceYear_place']=df0['raceYear'].astype(str)+"_"+df0['place'].astype(str)
 
 mymap={1:'#e10600',2:'#e3a19f',3:'#e3dcdc'}
 df0['color']=df0['place'].map(mymap)
-df0=df0.sort_values(by = 'raceYear', ascending=True)
+df0=df0.sort_values(['raceYear','points'], ascending=[True,False])
 
 ####### For Charts Place per Season
 #to get the data frame with Driver's place per season
@@ -199,7 +200,7 @@ df0c['raceYear_place']=df0c['raceYear'].astype(str)+"_"+df0c['place'].astype(str
 
 mymap={1:'#e10600',2:'#e3a19f',3:'#e3dcdc'}
 df0c['color']=df0c['place'].map(mymap)
-df0c=df0c.sort_values(by = 'raceYear', ascending=True)
+df0c=df0c.sort_values(['raceYear','points'], ascending=[True,True])
 
 ####### For Charts Place per Season
 #to get the data frame with Constructor's place per season
@@ -265,10 +266,63 @@ def startingtime(q1,q2,q3):
     else:             time = "\\N"
     return time
 
+###########################
+####### For driver Tabs
+###########################
+def dfdfp8(circuit):
+    dfp=df[df['raceName']==circuit].copy()
+    dfp = dfp.groupby(['raceYear','driverName'])['points'].sum().reset_index().sort_values(
+                                    ['raceYear','points'], ascending=[False,False]).groupby('raceYear').head(20)
+    dfp['count'] = dfp['points'].ne(dfp['raceYear'].shift(1)).cumsum()
+    dfp['place']= dfp['count']-dfp['raceYear'].apply(lambda y:dfp[dfp["raceYear"]==y].min()["count"])+1
+    dfp8=dfp.drop(['count'], axis = 1)
+    return dfp8
 
 
+def dfdf0(circuit):
+    df0=df[df['raceName']==circuit].copy()
+    df0= df0.groupby(['raceYear','driverName','driverNationality','driverDob',
+                      'driverId','constructorName','constructorNationality'])['points'].sum().reset_index().sort_values(
+                                    ['raceYear','points'], ascending=[False,False]).groupby('raceYear').head(3)
+    df0['count'] = df0['points'].ne(df0['raceYear'].shift(1)).cumsum()
 
+    #to identify the winning drivers
+    df0['place']= df0['count']-df0['raceYear'].apply(lambda y:df0[df0["raceYear"]==y].min()["count"])+1
+    df0=df0.drop(['count'], axis = 1)
+    df0['raceYear_place']=df0['raceYear'].astype(str)+"_"+df0['place'].astype(str)
 
+    mymap={1:'#e10600',2:'#e3a19f',3:'#e3dcdc'}
+    df0['color']=df0['place'].map(mymap)
+    df0=df0.sort_values(['raceYear','points'], ascending=[True,True])
+    return df0
+
+###########################
+####### For Constructor Tabs
+###########################
+def dfdfp9(circuit):
+    dfp=df[df['raceName']==circuit].copy()
+    dfp = dfp.groupby(['raceYear','constructorName'])['points'].sum().reset_index().sort_values(
+                                    ['raceYear','points'], ascending=[False,False]).groupby('raceYear').head(20)
+    dfp['count'] = dfp['points'].ne(dfp['raceYear'].shift(1)).cumsum()
+    dfp['place']= dfp['count']-dfp['raceYear'].apply(lambda y:dfp[dfp["raceYear"]==y].min()["count"])+1
+    dfp9=dfp.drop(['count'], axis = 1)
+    return dfp9
+
+def dfdf0c (circuit):
+    df0c=df[df['raceName']==circuit].copy()
+    df0c= df0c.groupby(['raceYear','constructorName','constructorNationality'])['points'].sum().reset_index().sort_values(
+                                        ['raceYear','points'], ascending=[False,False]).groupby('raceYear').head(3)
+    df0c['count'] = df0c['points'].ne(df0c['raceYear'].shift(1)).cumsum()
+
+    #to identify the winning drivers
+    df0c['place']= df0c['count']-df0c['raceYear'].apply(lambda y:df0c[df0c["raceYear"]==y].min()["count"])+1
+    df0c=df0c.drop(['count'], axis = 1)
+    df0c['raceYear_place']=df0c['raceYear'].astype(str)+"_"+df0c['place'].astype(str)
+
+    mymap={1:'#e10600',2:'#e3a19f',3:'#e3dcdc'}
+    df0c['color']=df0c['place'].map(mymap)
+    df0c=df0c.sort_values(['raceYear','points'], ascending=[True,True])
+    return df0c
 
 tickfont=12
 barsColor = "#f55b68"
@@ -304,48 +358,24 @@ app.layout = html.Div([
                         children=[
                         dcc.Tab(label='Driver Results', value='Driver Results',className='main-tab',selected_className='main-tab--selected'),
                         dcc.Tab(label='Constructor Results', value='Constructor Results',className='main-tab',selected_className='main-tab--selected'),
+                        #dcc.Tab(label='Circuit Results', value='Circuit Results',className='main-tab',selected_className='main-tab--selected'),
                         dcc.Tab(label='Results per Nationality', value='Nationality Results',className='main-tab',selected_className='main-tab--selected'),
                         dcc.Tab(label='Formula 1 Dashboard', value='Formula 1 Dashboard',className='main-tab',selected_className='main-tab--selected'),
                     ])
             ]
     ),
     html.Br([]),
-    html.Div(
-        [dcc.Tabs(id="secondaryTabs",vertical=True, className='custom-tabs')]
-        ,style= {'width': '18%', 'display': 'inline-block'}),
+    html.Div([
+                dcc.Tabs(id="secondaryTabs",vertical=True, className='custom-tabs')
+            ],style= {'width': '18%', 'display': 'inline-block', 'vertical-align': 'top'}),
     html.Div([
         html.Div(id='filters', children=[
 
             #####filters_podiums
             html.Div(id="filters_podiums", children=[
                 html.Div([
-                    html.H5('Select places:',
-                          style= {'color':'#808080','font-weight':"bold",'width': '33%', 'display': 'inline-block'}),
-                    dcc.Checklist(
-                        id='Checklist',
-                        options=[
-                            {'label': '1st', 'value': '1'},
-                            {'label': '2nd', 'value': '2'},
-                            {'label': '3rd', 'value': '3'},
-                        ],
-                        value=['1','2','3'],
-                        labelStyle = dict(display='inline-block', color='#808080'),
-                        style= {'width': '66%', 'display': 'inline-block'}
-                    ),
-                ],style= {'width': '33%', 'display': 'inline-block'}),
-                html.Div(id="filters_nationality", children=[
-                    html.H5('Select Nationality:',
-                          style= {'color':'#808080','font-weight':"bold", 'width': '33%', 'display': 'inline-block'}),
-                    html.Div([
-                        dcc.Dropdown(
-                            id='Dropdown_Nationalities',
-                            value='All',
-                            style= style_dropdown)
-                    ],style= {'width': '60%', 'display': 'inline-block',}),###################
-                ],style= {'width': '33%', 'display': 'inline-block'}),
-                html.Div([
                     html.H5('Observations:',
-                          style= {'color':'#808080','font-weight':"bold", 'width': '33%', 'display': 'inline-block'}),
+                          style= {'color':'#808080','font-weight':"bold", 'width': '60%', 'display': 'inline-block'}),
                     html.Div([
                         dcc.RadioItems(
                             id='RadioItems',
@@ -355,12 +385,39 @@ app.layout = html.Div([
                                 {'label': '30', 'value': 30},
                             ],
                             value=10,
-                            labelStyle = dict(display='inline-block', color='#808080'),
+                            labelStyle = dict(display='block', color='#808080'),
                             style= {'display': 'inline-block'}
                         ),
-                    ],style= {'width': '49%', 'display': 'inline-block',}),###################
-                ],style= {'width': '33%', 'display': 'inline-block'}),
-            ]),
+                    ],style= {'width': '40%', 'display': 'inline-block',}),###################
+                ],style= {'width': '17%', 'display': 'inline-block'}),
+
+                html.Div([
+                    html.H5('Select places:',
+                          style= {'color':'#808080','font-weight':"bold",'width': '60%', 'display': 'inline-block'}),
+                    dcc.Checklist(
+                        id='Checklist',
+                        options=[
+                            {'label': '1st', 'value': '1'},
+                            {'label': '2nd', 'value': '2'},
+                            {'label': '3rd', 'value': '3'},
+                        ],
+                        value=['1','2','3'],
+                        labelStyle = dict(display='block', color='#808080'),
+                        style= {'width': '40%', 'display': 'inline-block'}
+                    ),
+                ],style= {'width': '17%', 'display': 'inline-block'}),
+
+                html.Div(id="filters_nationality", children=[
+                    html.H5('Select Nationality:',
+                          style= {'color':'#808080','font-weight':"bold", 'width': '40%', 'display': 'inline-block'}),
+                    html.Div([
+                        dcc.Dropdown(
+                            id='Dropdown_Nationalities',
+                            value='All',
+                            style= style_dropdown)
+                    ],style= {'width': '55%', 'display': 'inline-block',}),###################
+                ],style= {'width': '30%', 'display': 'inline-block'}),
+            ],style= {'width': '100%', 'display': 'inline-block'}),
 
             ######filters_placePerSeasonDrivers
             html.Div(id='filters_placePerSeasonDrivers', children=[
@@ -373,7 +430,7 @@ app.layout = html.Div([
                             value='Lewis Hamilton',
                             style= style_dropdown)
                     ],style= {'width': '60%', 'display': 'inline-block',}),###################
-                ],style= {'width': '50%', 'display': 'inline-block'}),
+                ],style= {'width': '32%', 'display': 'inline-block'}),
                 html.Div([
                     html.H5('Select a Driver:',
                           style= {'color':'#808080','font-weight':"bold", 'width': '33%', 'display': 'inline-block'}),
@@ -383,7 +440,7 @@ app.layout = html.Div([
                             value='Sergio Pérez',
                             style= style_dropdown)
                     ],style= {'width': '60%', 'display': 'inline-block',}),###################
-                ],style= {'width': '50%', 'display': 'inline-block'}),
+                ],style= {'width': '32%', 'display': 'inline-block'}),
             ],style= {'display': 'None'}),
 
             #####filters_placePerSeasonConstructors
@@ -504,10 +561,21 @@ app.layout = html.Div([
                         2020: '2020',
                     },
                     step=1,
-                ), style={'width': '85%','display': 'inline-block'}),
+                ), style={'width': '49%','display': 'inline-block'}),
+                html.Div(id="filters_circuit", children=[
+                    html.H5('Select Circuit:',
+                          style= {'color':'#808080','font-weight':"bold", 'width': '25%', 'display': 'inline-block'}),
+                    html.Div([
+                        dcc.Dropdown(
+                            id='Dropdown_Circuits',
+                            value='All',
+                            style= style_dropdown)
+                    ],style= {'width': '75%', 'display': 'inline-block',}),###################
+                ],style= {'width': '36%', 'display': 'inline-block'}),
             ],style= {'width': '100%', 'display': 'inline-block'}),
 
         ], style={
+            'width': '100%', 'display': 'inline-block',
             #'borderBottom': 'thin lightgrey solid',
             'backgroundColor': 'rgb(250, 250, 250)',
             'padding': '0px 5px',
@@ -516,8 +584,6 @@ app.layout = html.Div([
             dcc.Graph(id='Chart'),
             dcc.Graph(id='Chart2'),
             dcc.Markdown(id='nodata', style  = {'color':'#808080','font-weight':"bold"})
-
-
         ])
     ],style= {'width': '82%', 'display': 'inline-block'}),
 
@@ -591,7 +657,7 @@ app.layout = html.Div([
                     html.Div(id="maintable2", children=[create_table("dashtable2")],style= {'display': 'none'}),
                     html.Div(id="Chart3Div", children=[dcc.Graph(id='Chart3'),],style= {'display': 'none'}),
                 ],style= {'width': '83%', 'display': 'inline-block'}),
-            ], style= {'width': '100%','display': 'None'})
+            ], style= {'width': '100%','display': 'None'}),
 
     ],className="cuerpo"),
     html.Br([]),
@@ -634,6 +700,16 @@ def funtion(tab):
             dcc.Tab(label='Winners per Season', value='Winners per Season',className='custom-tab',selected_className='custom-tab--selected'),
         ]
         value='Championship Podiums'
+
+   # elif tab == 'Circuit Results':
+   #     children=[
+   #         dcc.Tab(label='Race Podiums', value='Race Podiums',className='custom-tab',selected_className='custom-tab--selected'),
+   #         dcc.Tab(label='Place per Season - Driver', value='Place per Season Driver',className='custom-tab',selected_className='custom-tab--selected'),
+   #         dcc.Tab(label='Place per Season - Team', value='Place per Season Team',className='custom-tab',selected_className='custom-tab--selected'),
+   #         dcc.Tab(label='Winners per Season - Driver', value='Winners per Season Driver',className='custom-tab',selected_className='custom-tab--selected'),
+   #         dcc.Tab(label='Winners per Season - Team', value='Winners per Season Team',className='custom-tab',selected_className='custom-tab--selected'),
+   #     ]
+   #     value='Race Podiums'
 
     elif tab == 'Nationality Results':
         children=[
@@ -745,52 +821,118 @@ def Dropdown_Nationalities(Checklist_options, years, tab, tab2):
     return nationalities
 
 @app.callback(
+    Output('Dropdown_Circuits', 'options'),
+    [Input('Checklist', 'value'),
+     Input('RangeSlider', 'value'),
+     Input('mainTabs', 'value'),
+     Input('secondaryTabs', 'value')])
+def Dropdown_Circuits(Checklist_options, years, tab, tab2):
+    circuits = [{'label': 'All', 'value': 'All'}]
+    df1=df[(df['raceYear']>=years[0])&(df['raceYear']<=years[1])].copy()
+    circuits = [{'label': 'All', 'value': 'All'}]
+    for circuit in df1['raceName'].sort_values().unique():
+        circuits.append({'label':str(circuit),'value':circuit})
+    return circuits
+
+@app.callback(
      [Output('filters_podiums', 'style'),
       Output('filters_placePerSeasonDrivers', 'style'),
       Output('filters_placePerSeasonConstructors', 'style'),
       Output('filters_constructorsPerSeason', 'style'),
       Output('filters_driversPerSeason', 'style'),
       Output("filters_nationality", 'style'),
+      Output("filters_circuit", 'style'),
       Output("tables", 'style'),
       Output('RangeSliderDiv', 'style'),
      ],
      [Input('mainTabs', 'value'),
       Input('secondaryTabs', 'value')])
 def funtion(tab, tab2):
-    stylePodiums= stylePPSD= stylePPSC=styleCPS=styleDPS =styleTables = {'width': '85%', 'display': 'none'}
-    styleRangeSliderDiv={'width': '85%', 'display': 'inline-block'}
-    styleNat={'width': '33%', 'display': 'inline-block'}
+    stylePodiums= stylePPSD= stylePPSC=styleCPS=styleDPS =styleTables = {'width': '99%', 'display': 'none'}
+    styleRangeSliderDiv={'width': '99%', 'display': 'inline-block'}
+    styleNat={'width': '30%', 'display': 'inline-block'}
+    styleCir={'width': '36%', 'display': 'inline-block'}
 
     if tab == 'Driver Results':
         if tab2 == 'Championship Podiums':
-            stylePodiums= {'width': '85%', 'display': 'inline-block'}
+            stylePodiums= {'width': '99%', 'display': 'inline-block'}
+            styleCir={'width': '36%', 'display': 'None'}
         elif tab2 == 'Race Podiums':
-            stylePodiums= {'width': '85%', 'display': 'inline-block'}
+            stylePodiums= {'width': '99%', 'display': 'inline-block'}
         elif tab2 == 'Place per Season':
-            stylePPSD= {'width': '85%', 'display': 'inline-block'}
+            stylePPSD= {'width': '99%', 'display': 'inline-block'}
+            styleCir={'width': '36%', 'display': 'inline-block'}
         elif tab2 == 'Constructors per Season':
-            styleCPS= {'width': '85%', 'display': 'inline-block'}
-            styleRangeSliderDiv={'width': '85%', 'display': 'None'}
+            styleCPS= {'width': '99%', 'display': 'inline-block'}
+            styleRangeSliderDiv={'width': '99%', 'display': 'None'}
     elif tab == 'Constructor Results':
         if tab2 == 'Championship Podiums':
-            stylePodiums= {'width': '85%', 'display': 'inline-block'}
+            stylePodiums= {'width': '99%', 'display': 'inline-block'}
+            styleCir={'width': '36%', 'display': 'None'}
         elif tab2 == 'Race Podiums':
-            stylePodiums= {'width': '85%', 'display': 'inline-block'}
+            stylePodiums= {'width': '99%', 'display': 'inline-block'}
         elif tab2 == 'Place per Season':
-            stylePPSC= {'width': '85%', 'display': 'inline-block'}
+            stylePPSC= {'width': '99%', 'display': 'inline-block'}
         elif tab2 == 'Drivers per Season':
-            styleDPS= {'width': '85%', 'display': 'inline-block'}
-            styleRangeSliderDiv={'width': '85%', 'display': 'None'}
+            styleDPS= {'width': '99%', 'display': 'inline-block'}
+            styleRangeSliderDiv={'width': '99%', 'display': 'None'}
     elif tab == 'Nationality Results':
         styleNat={'width': '33%', 'display': 'None'}
-        stylePodiums= {'width': '85%', 'display': 'inline-block'}
+        stylePodiums= {'width': '99%', 'display': 'inline-block'}
+        if tab2 == 'Championship Podiums':
+            styleCir={'width': '36%', 'display': 'None'}
+
+
     elif tab == 'Formula 1 Dashboard':
-        stylePodiums= {'width': '85%', 'display': 'none'}
-        styleRangeSliderDiv={'width': '85%', 'display': 'None'}
+        stylePodiums= {'width': '99%', 'display': 'none'}
+        styleRangeSliderDiv={'width': '99%', 'display': 'None'}
         styleTables = {'width': '100%','display': 'inline-block'}
 
-    return stylePodiums, stylePPSD, stylePPSC, styleCPS, styleDPS, styleNat, styleTables, styleRangeSliderDiv
+    return stylePodiums, stylePPSD, stylePPSC, styleCPS, styleDPS, styleNat, styleCir, styleTables, styleRangeSliderDiv
 
+
+@app.callback(
+    [Output('Dropdown3', 'options'),
+     Output('Dropdown3', 'value'),
+     Output('Dropdown3', 'style')],
+    [Input('Dropdown1', 'value'),
+     Input('Dropdown2', 'value'),
+     Input('Dropdown3', 'value')])
+def funtion(year, topic, subtopic):
+    value="All"
+    style={'font-size': '14px', 'color':'#808080','font-family':"system-ui",'display': 'block'}
+    df1=df.copy()
+    df1=df1[df1['raceYear']==year]
+    if topic == "RACES":
+        if len(df1[df1["raceName"]==subtopic])>0:
+            value = subtopic
+        options=np.array(df1.groupby(['raceRound','raceName'])['points'].sum().reset_index()['raceName'])
+        dictionary = [{'label': 'All', 'value': 'All'}]
+        for item in options:
+            dictionary.append({'label':str(item),'value':item})
+        return dictionary, value, style
+
+    if topic == "DRIVERS":
+        if len(df1[df1["driverName"]==subtopic])>0:
+            value = subtopic
+        options=df1['driverName'].sort_values().unique()
+        dictionary = [{'label': 'All', 'value': 'All'}]
+        for item in options:
+            dictionary.append({'label':str(item),'value':item})
+        return dictionary, value, style
+
+    if topic == "TEAMS":
+        if len(df1[df1["constructorName"]==subtopic])>0:
+            value = subtopic
+        options=df1['constructorName'].sort_values().unique()
+        dictionary = [{'label': 'All', 'value': 'All'}]
+        for item in options:
+            dictionary.append({'label':str(item),'value':item})
+        return dictionary, value, style
+
+    if topic == "FASTEST LAP":
+        style={'display': 'none'}
+        return years, value, style
 @app.callback(
     [Output('Chart', 'style'),
      Output('nodata', 'children'),
@@ -799,6 +941,7 @@ def funtion(tab, tab2):
      Output('Chart2', 'figure')],
     [Input('Checklist', 'value'),
      Input('Dropdown_Nationalities', 'value'),
+     Input('Dropdown_Circuits', 'value'),
      Input('RadioItems', 'value'),
      Input('RangeSlider', 'value'),
      Input('mainTabs', 'value'),
@@ -812,7 +955,7 @@ def funtion(tab, tab2):
      Input('DropdownConstructorDPS', 'value'),
      Input('RangeSliderDPS', 'value'),
     ])
-def Chart1(Checklist_options, nationality,observations, years, tab,
+def Chart1(Checklist_options, nationality,circuit,observations, years, tab,
            tab2,drivername1, drivername2, constructorName1, constructorName2,
            driverNameCPS, yearsCPS, constructorNameDPS, yearsDPS):
 
@@ -855,6 +998,9 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                     }
         if tab2 == 'Race Podiums':
             df1=df[(df['raceYear']>=years[0])&(df['raceYear']<=years[1])].copy()
+            if circuit != "All":
+                df1=df1[df1['raceName']==circuit]
+
             df1= df1[df1['positionOrder'].isin(Checklist_options)].groupby(['driverName','driverNationality','driverDob'
                                            ])['positionOrder'].count().reset_index().sort_values(
                                              by = 'positionOrder', ascending=False).rename(
@@ -885,7 +1031,12 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                             )
                     }
         if tab2 == 'Place per Season':
-            dfx=dfp8[(dfp8['raceYear']>=years[0])&(dfp8['raceYear']<=years[1])]
+            if circuit != "All":
+                dfx=dfdfp8(circuit)
+                dfx=dfx[(dfx['raceYear']>=years[0])&(dfx['raceYear']<=years[1])]
+            else:
+                dfx=dfp8[(dfp8['raceYear']>=years[0])&(dfp8['raceYear']<=years[1])]
+
             df1=dfx[dfx['driverName']==drivername1]
             df2=dfx[dfx['driverName']==drivername2]
 
@@ -958,7 +1109,11 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                           )
                     }
         if tab2 == 'Winners per Season':
-            df1=df0[(df0['raceYear']>=years[0])&(df0['raceYear']<=years[1])]
+            if circuit != "All":
+                df1=dfdf0(circuit)
+                df1=df1[(df1['raceYear']>=years[0])&(df1['raceYear']<=years[1])]
+            else:
+                df1=df0[(df0['raceYear']>=years[0])&(df0['raceYear']<=years[1])]
 
             if len(df1)> 0:
                 style  = {'display': 'block'}
@@ -986,7 +1141,11 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                     }
         if tab2 == 'Youngest Drivers':
             style  = {'display': 'block'}
-            dfz=dfy[(dfy['raceYear']>=years[0])&(dfy['raceYear']<=years[1])]
+            if circuit != "All":
+                dfz=dfy[(dfy['raceYear']>=years[0])&(dfy['raceYear']<=years[1])]
+                dfz=dfz[dfz['raceName']==circuit].copy()
+            else:
+                dfz=dfy[(dfy['raceYear']>=years[0])&(dfy['raceYear']<=years[1])]
 
             df1=dfz[dfz['positionOrder']==1].groupby(['driverAge','driverName','driverNationality','constructorName','raceDate', 'raceName'
                                            ])['positionOrder'].sum().reset_index().sort_values(
@@ -1077,6 +1236,9 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                 }
         if tab2 == 'Race Podiums':
             df1=df[(df['raceYear']>=years[0])&(df['raceYear']<=years[1])].copy()
+            if circuit != "All":
+                df1=df1[df1['raceName']==circuit]
+
             df1= df1[df1['positionOrder'].isin(Checklist_options)].groupby(['constructorName','constructorNationality'
                                            ])['positionOrder'].count().reset_index().sort_values(
                                              by = 'positionOrder', ascending=False).rename(
@@ -1108,7 +1270,12 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                             )
                     }
         if tab2 == 'Place per Season':
-            dfx=dfp9[(dfp9['raceYear']>=years[0])&(dfp9['raceYear']<=years[1])]
+            if circuit != "All":
+                dfx=dfdfp9(circuit)
+                dfx=dfx[(dfx['raceYear']>=years[0])&(dfx['raceYear']<=years[1])]
+            else:
+                dfx=dfp9[(dfp9['raceYear']>=years[0])&(dfp9['raceYear']<=years[1])]
+
             df1=dfx[dfx['constructorName']==constructorName1]
             df2=dfx[dfx['constructorName']==constructorName2]
 
@@ -1182,7 +1349,12 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                           )
             }
         if tab2 == 'Winners per Season':
-            df1=df0c[(df0c['raceYear']>=years[0])&(df0c['raceYear']<=years[1])]
+
+            if circuit != "All":
+                df1=dfdf0c(circuit)
+                df1=df1[(df1['raceYear']>=years[0])&(df1['raceYear']<=years[1])]
+            else:
+                df1=df0c[(df0c['raceYear']>=years[0])&(df0c['raceYear']<=years[1])]
 
             if len(df1)> 0:
                 style  = {'display': 'block'}
@@ -1243,6 +1415,8 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                 }
         if tab2 == 'Race Podiums':
             df1=df[(df['raceYear']>=years[0])&(df['raceYear']<=years[1])].copy()
+            if circuit != "All":
+                df1=df1[df1['raceName']==circuit]
             df1= df1[df1['positionOrder'].isin(Checklist_options)].groupby(['driverNationality'
                                            ])['positionOrder'].count().reset_index().sort_values(
                                              by = 'positionOrder', ascending=False).rename(
@@ -1270,9 +1444,6 @@ def Chart1(Checklist_options, nationality,observations, years, tab,
                           font_family="system-ui"
                             )
                     }
-
-
-
 
     return style, children, figure, style2, figure2
 
@@ -1481,49 +1652,6 @@ def funtion(year, topic, subtopic, tab):
             df1['GRAND PRIX'] = df1['GRAND PRIX'].str[:-11]
             data1, col1 =df1.to_dict('records'), [{"name": i, "id": i} for i in df1.columns]
             return data1, col1, data1, col1, headtext,style_mt,style_rt,style_rt, styleChart3Div, chart3
-
-@app.callback(
-    [Output('Dropdown3', 'options'),
-     Output('Dropdown3', 'value'),
-     Output('Dropdown3', 'style')],
-    [Input('Dropdown1', 'value'),
-     Input('Dropdown2', 'value'),
-     Input('Dropdown3', 'value')])
-def funtion(year, topic, subtopic):
-    value="All"
-    style={'font-size': '14px', 'color':'#808080','font-family':"system-ui",'display': 'block'}
-    df1=df.copy()
-    df1=df1[df1['raceYear']==year]
-    if topic == "RACES":
-        if len(df1[df1["raceName"]==subtopic])>0:
-            value = subtopic
-        options=np.array(df1.groupby(['raceRound','raceName'])['points'].sum().reset_index()['raceName'])
-        dictionary = [{'label': 'All', 'value': 'All'}]
-        for item in options:
-            dictionary.append({'label':str(item),'value':item})
-        return dictionary, value, style
-
-    if topic == "DRIVERS":
-        if len(df1[df1["driverName"]==subtopic])>0:
-            value = subtopic
-        options=df1['driverName'].sort_values().unique()
-        dictionary = [{'label': 'All', 'value': 'All'}]
-        for item in options:
-            dictionary.append({'label':str(item),'value':item})
-        return dictionary, value, style
-
-    if topic == "TEAMS":
-        if len(df1[df1["constructorName"]==subtopic])>0:
-            value = subtopic
-        options=df1['constructorName'].sort_values().unique()
-        dictionary = [{'label': 'All', 'value': 'All'}]
-        for item in options:
-            dictionary.append({'label':str(item),'value':item})
-        return dictionary, value, style
-
-    if topic == "FASTEST LAP":
-        style={'display': 'none'}
-        return years, value, style
 
 # Add the server clause:
 if __name__ == '__main__':
