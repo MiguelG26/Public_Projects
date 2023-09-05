@@ -71,7 +71,7 @@ FROM fleet_shop.ve_fct_pln_hc vfph
 WHERE 1=1
     AND vfph.brnc_mndt_code IN (1,30,35,38,42,60,66,69,75,80,700,741)
    -- AND vctv_date >=cast(date_add('month',-6,current_date) AS date)
-    AND vctv_date >=cast(date_add('month',-1,current_date) AS date)
+   AND vctv_date >= cast('2023-01-01' AS date)
 ) 
 
 ,act_fleet_base_max_vctv AS(
@@ -384,7 +384,7 @@ GROUP BY
 UNION
 
 SELECT 
-    'ES_Mainland' AS country_code
+    'ES' AS country_code
     ,crs
     ,substr(date_,1,10) AS infleet_date
     ,lz AS holding_days
@@ -395,25 +395,7 @@ SELECT
     ,dist AS pool
     ,sum(anz) AS infleets
 FROM yield_shop.infleet_es
-WHERE dist NOT IN (41288,42488,42694,44386,44395)
-GROUP BY
-1,2,3,4,5,6,7,8,9
-
-UNION
-
-SELECT 
-    'ES_CI' AS country_code
-    ,crs
-    ,substr(date_,1,10) AS infleet_date
-    ,lz AS holding_days
-    ,manc AS OEM
-    ,manc_info AS OEM_info
-    ,model AS vhcl_model
-    ,bbcn
-    ,dist AS pool
-    ,sum(anz) AS infleets
-FROM yield_shop.infleet_es
-WHERE dist IN (41288,42488,42694,44386,44395)
+WHERE 1=1
 GROUP BY
 1,2,3,4,5,6,7,8,9
 
@@ -523,7 +505,7 @@ GROUP BY
 ,yield_infleets_base AS(
 SELECT 
     country_code
-    ,CASE WHEN country_code IN ('ES_CI','ES_Mainland')THEN 'ES' ELSE country_code END AS vhcl_mndt
+    ,country_code AS vhcl_mndt
     ,vhgr_category_level1 AS fare
     ,vhgr_category_level2 AS scrs
     ,replace(crs,' ','') AS crs
@@ -959,7 +941,7 @@ SELECT DISTINCT
     ,calculation_type
 FROM planned_infleets_days
 WHERE 1=1
-    AND vctv_date <=  cast(date_add('month',14,current_date) AS date)
+    AND vctv_date <=  cast(date_add('month',10,current_date) AS date)
 )
 /*##################################### END OF INFLEETS FLEET#######################################*/
 
@@ -1138,5 +1120,7 @@ FROM fleet_hc_forecast_output_base_nf2
 
 SELECT 
     *
+    ,cast((sum(vfph_pln_hc_day) OVER (partition by vctv_date,brnc_mndt_iso,vhgr_category_level1) / count(vhcl_int_num) OVER (partition by vctv_date,brnc_mndt_iso,vhgr_category_level1)) AS decimal (38,20)) AS avg_hc_fare_day
+    ,cast((1.0/(count(*) OVER (partition by vctv_date,brnc_mndt_iso,brnc_mndt_iso)))*100  AS decimal(10,4))AS vhcl_fleet_share
 FROM fleet_hc_forecast_output_base_nf3
 WHERE 1=1
