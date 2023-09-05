@@ -1,0 +1,1142 @@
+WITH act_fleet_base AS(
+SELECT 
+    'actual_fleet' AS source
+    ,vfph.vctv_date
+    ,vfph.brnc_mndt_code
+    ,vfph.brnc_mndt_iso
+ --   ,vfph.pci_brnc_code
+    ,vfph.vhcl_int_num
+    ,vfph.vhcl_model
+    ,vfph.mndt_code
+    ,vfph.vhcl_mndt_iso
+    ,vfph.vhcl_bbcn_contract
+    ,vfph.vfph_risk_type
+    ,vfph.vhcl_type_id
+    ,vfph.fuel_type_code
+    ,vfph.vhmd_ref_man_code
+    ,vfph.vhgr_category_level1
+    ,vfph.vhcl_category_level2
+    ,vfph.vhgr_sub_category_level1
+    ,vfph.vhcl_crs
+    ,vfph.vhcl_price_list
+    ,vfph.vhcl_purchasing_price
+    ,vfph.vhcl_unique_cost
+    ,vfph.vhcl_start_depr_date
+    ,vfph.vhcl_grounded_date
+    ,CASE
+        WHEN vfph.vhcl_defleet_hd_plan_date = cast('1899-12-31' AS date)
+        THEN NULL
+        WHEN yrepex_v_whveh_ywi.ausd IS NULL 
+        THEN vfph.vhcl_defleet_hd_plan_date
+        ELSE cast(yrepex_v_whveh_ywi.ausd AS date)
+    END AS vhcl_defleet_plan_date
+    ,vfph.first_vhcl_pci_day
+    ,vfph.last_vhcl_pci_day
+    ,vfph.vhcl_current_run_days
+    ,vfph.bbcd
+    ,vfph.bbcn_contract_year
+    ,vfph.vhcl_calc_fc_day
+    ,vfph.vhcl_calc_afa_day
+    ,vfph.vhcl_calc_kb2_day
+    ,vfph.vhcl_calc_tax_day
+    ,vfph.vhcl_calc_insurance_day
+    ,vfph.vhcl_calc_interest_day
+    ,vfph.vhcl_calc_lump_sum_day
+    ,vfph.vhcl_calc_bonus_value_day
+    ,vfph.vfph_staggered_depreciation
+    ,vfph.vfph_staggered_depr_duration_days
+    ,vfph.vfph_additional_depr_type_validity
+    ,vfph.vfph_min_depr_duration
+    ,vfph.vfph_buffer_days
+    ,vfph.vfph_additional_depr_starts_with_day
+    ,vfph.vfph_penalty_depr_starts_with_day
+    ,vfph.vfph_calc_standard_depr_duration
+    ,vfph.vfph_standard_depr_day
+    ,vfph.vfph_nrk_day
+    ,vfph.vfph_bonus_day
+    ,vfph.vfph_additional_depr_day
+    ,vfph.vfph_penalty_depr_day
+    ,vfph.vfph_current_depr_day
+    ,vfph.vfph_current_depr_type
+    ,vfph.vfph_implausible_depr_flg
+    ,vfph.vfph_pln_depr_day_origin
+    ,vfph.vfph_risk_score
+    ,vfph.vfph_stolen_markup
+    ,vfph.vfph_damage_markup
+    ,vfph.vfph_pln_depr_day
+    ,vfph.vfph_pln_hc_day
+    ,(SELECT max(vctv_date) FROM fleet_shop.ve_fct_pln_hc) AS current_pci_date
+FROM fleet_shop.ve_fct_pln_hc vfph
+        LEFT JOIN yield_shop.yrepex_v_whveh_ywi ON vfph.vhcl_int_num = yrepex_v_whveh_ywi.int
+WHERE 1=1
+    AND vfph.brnc_mndt_code IN (1,30,35,38,42,60,66,69,75,80,700,741)
+   -- AND vctv_date >=cast(date_add('month',-6,current_date) AS date)
+    AND vctv_date >=cast(date_add('month',-1,current_date) AS date)
+) 
+
+,act_fleet_base_max_vctv AS(
+SELECT *
+FROM act_fleet_base
+WHERE vctv_date = (SELECT max(vctv_date) FROM fleet_shop.ve_fct_pln_hc)
+)
+
+,current_pci_date AS (
+SELECT max(vctv_date) vctv_date FROM fleet_shop.ve_fct_pln_hc
+)
+
+,forecast_fleet_nf1 AS(
+SELECT DISTINCT
+    act_fleet_base.vhcl_int_num
+  --  ,brnc_mndt_iso
+  --  ,vhgr_category_level1
+    ,cast(ge_dim_dates.date_date AS date) AS vctv_date
+    ,date_diff('day',first_vhcl_pci_day,cast(ge_dim_dates.date_date AS date)) AS vhcl_current_run_days    
+FROM act_fleet_base,common_shop.ge_dim_dates,current_pci_date
+WHERE ge_dim_dates.date_date
+    BETWEEN date_add('day',1,cast(current_pci_date.vctv_date AS date))
+    AND cast(date_add('day',-1,vhcl_defleet_plan_date) AS date)
+) 
+
+,forecast_fleet_nf2 AS(
+SELECT DISTINCT 
+    'forecast_fleet' AS source
+    ,ffnf1.vctv_date
+    ,afb.brnc_mndt_code
+    ,afb.brnc_mndt_iso
+   -- ,afb.pci_brnc_code
+    ,afb.vhcl_int_num
+    ,afb.vhcl_model
+    ,afb.mndt_code
+    ,afb.vhcl_mndt_iso
+    ,afb.vhcl_bbcn_contract
+    ,afb.vfph_risk_type
+    ,afb.vhcl_type_id
+    ,afb.fuel_type_code
+    ,afb.vhmd_ref_man_code
+    ,afb.vhgr_category_level1
+    ,afb.vhcl_category_level2
+    ,afb.vhgr_sub_category_level1
+    ,afb.vhcl_crs
+    ,afb.vhcl_price_list
+    ,afb.vhcl_purchasing_price
+    ,afb.vhcl_unique_cost
+    ,afb.vhcl_start_depr_date
+    ,afb.vhcl_grounded_date
+    ,afb.vhcl_defleet_plan_date
+    ,afb.first_vhcl_pci_day
+    ,afb.last_vhcl_pci_day
+    ,ffnf1.vhcl_current_run_days
+    ,afb.bbcd
+    ,afb.bbcn_contract_year
+    ,afb.vhcl_calc_fc_day
+    ,afb.vhcl_calc_afa_day
+    ,afb.vhcl_calc_kb2_day
+    ,afb.vhcl_calc_tax_day
+    ,afb.vhcl_calc_insurance_day
+    ,afb.vhcl_calc_interest_day
+    ,afb.vhcl_calc_lump_sum_day
+    ,afb.vhcl_calc_bonus_value_day
+    ,afb.vfph_staggered_depreciation
+    ,afb.vfph_staggered_depr_duration_days
+    ,afb.vfph_additional_depr_type_validity
+    ,afb.vfph_min_depr_duration
+    ,afb.vfph_buffer_days
+    ,afb.vfph_additional_depr_starts_with_day
+    ,afb.vfph_penalty_depr_starts_with_day
+    ,afb.vfph_calc_standard_depr_duration
+    ,afb.vfph_standard_depr_day
+    ,afb.vfph_nrk_day
+    ,afb.vfph_bonus_day
+    ,afb.vfph_additional_depr_day
+    ,afb.vfph_penalty_depr_day
+    ,afb.vfph_current_depr_day
+    ,CASE
+        WHEN ffnf1.vhcl_current_run_days <= vfph_min_depr_duration OR (afb.vfph_additional_depr_starts_with_day IS NULL AND afb.vfph_penalty_depr_starts_with_day IS NULL)
+        THEN 'standard'
+        WHEN ffnf1.vhcl_current_run_days >vfph_min_depr_duration AND ffnf1.vhcl_current_run_days < afb.vfph_additional_depr_starts_with_day
+        THEN 'buffer_days'
+        WHEN afb.vfph_additional_depr_starts_with_day IS NULL AND afb.vfph_penalty_depr_starts_with_day IS NOT NULL AND ffnf1.vhcl_current_run_days < afb.vfph_penalty_depr_starts_with_day
+        THEN 'standard'
+        WHEN afb.vfph_additional_depr_starts_with_day IS NULL AND afb.vfph_penalty_depr_starts_with_day IS NOT NULL AND ffnf1.vhcl_current_run_days > afb.vfph_penalty_depr_starts_with_day
+        THEN 'penalty'
+        WHEN ffnf1.vhcl_current_run_days >= vfph_calc_standard_depr_duration AND afb.vfph_additional_depr_starts_with_day <> 0.0 AND (ffnf1.vhcl_current_run_days< afb.vfph_penalty_depr_starts_with_day OR afb.vfph_penalty_depr_starts_with_day IS NULL)
+        THEN 'additional'
+        WHEN (afb.vfph_penalty_depr_starts_with_day IS NULL OR afb.vfph_penalty_depr_starts_with_day = 0.0) AND afb.vfph_additional_depr_starts_with_day IS NOT NULL AND afb.vfph_additional_depr_starts_with_day <>0.0
+        THEN 'additional'
+        WHEN ffnf1.vhcl_current_run_days >= afb.vfph_penalty_depr_starts_with_day AND afb.vfph_penalty_depr_starts_with_day <> 0.0
+        THEN 'penalty'
+    END AS vfph_current_depr_type    
+    ,afb.vfph_implausible_depr_flg
+    ,afb.vfph_pln_depr_day_origin
+    ,afb.vfph_risk_score
+    ,afb.vfph_stolen_markup
+    ,afb.vfph_damage_markup
+    ,afb.vfph_pln_depr_day
+    ,afb.vfph_pln_hc_day
+    ,afb.current_pci_date
+FROM act_fleet_base_max_vctv afb
+    JOIN forecast_fleet_nf1 ffnf1 ON afb.vhcl_int_num = ffnf1.vhcl_int_num AND ffnf1.vctv_date >= date_add('day',1,cast(afb.vctv_date AS date))
+WHERE 1=1
+    ) 
+  
+,forecast_fleet_nf3 AS (
+SELECT DISTINCT
+    source
+    ,ffnf2.vctv_date
+    ,ffnf2.brnc_mndt_code
+    ,ffnf2.brnc_mndt_iso
+ --   ,ffnf2.pci_brnc_code
+    ,ffnf2.vhcl_int_num
+    ,ffnf2.vhcl_model
+    ,ffnf2.mndt_code
+    ,ffnf2.vhcl_mndt_iso
+    ,ffnf2.vhcl_bbcn_contract
+    ,ffnf2.vfph_risk_type
+    ,ffnf2.vhcl_type_id
+    ,ffnf2.fuel_type_code
+    ,ffnf2.vhmd_ref_man_code
+    ,ffnf2.vhgr_category_level1
+    ,ffnf2.vhcl_category_level2
+    ,ffnf2.vhgr_sub_category_level1
+    ,ffnf2.vhcl_crs
+    ,ffnf2.vhcl_price_list
+    ,ffnf2.vhcl_purchasing_price
+    ,ffnf2.vhcl_unique_cost
+    ,ffnf2.vhcl_start_depr_date
+    ,ffnf2.vhcl_grounded_date
+    ,ffnf2.vhcl_defleet_plan_date
+    ,ffnf2.first_vhcl_pci_day
+    ,ffnf2.last_vhcl_pci_day
+    ,ffnf2.vhcl_current_run_days
+    ,ffnf2.bbcd
+    ,ffnf2.bbcn_contract_year
+    ,ffnf2.vhcl_calc_fc_day
+    ,ffnf2.vhcl_calc_afa_day
+    ,ffnf2.vhcl_calc_kb2_day
+    ,ffnf2.vhcl_calc_tax_day
+    ,ffnf2.vhcl_calc_insurance_day
+    ,ffnf2.vhcl_calc_interest_day
+    ,ffnf2.vhcl_calc_lump_sum_day
+    ,ffnf2.vhcl_calc_bonus_value_day
+    ,ffnf2.vfph_staggered_depreciation
+    ,ffnf2.vfph_staggered_depr_duration_days
+    ,ffnf2.vfph_additional_depr_type_validity
+    ,ffnf2.vfph_min_depr_duration
+    ,ffnf2.vfph_buffer_days
+    ,ffnf2.vfph_additional_depr_starts_with_day
+    ,ffnf2.vfph_penalty_depr_starts_with_day
+    ,ffnf2.vfph_calc_standard_depr_duration
+    ,ffnf2.vfph_standard_depr_day
+    ,CASE
+        WHEN vfph_current_depr_type ='standard'
+        THEN ffnf2.vfph_nrk_day
+        ELSE 0 END AS vfph_nrk_day
+    ,ffnf2.vfph_bonus_day
+    ,ffnf2.vfph_additional_depr_day
+    ,ffnf2.vfph_penalty_depr_day
+    ,ffnf2.vfph_current_depr_day
+    ,ffnf2.vfph_current_depr_type
+    ,ffnf2.vfph_implausible_depr_flg
+    ,ffnf2.vfph_pln_depr_day_origin
+    ,ffnf2.vfph_risk_score
+    ,ffnf2.vfph_stolen_markup
+    ,ffnf2.vfph_damage_markup
+    ,coalesce(CASE
+        WHEN vfph_risk_type IN ('Risk','Leasing')
+        THEN ffnf2.vhcl_calc_afa_day
+        WHEN vfph_implausible_depr_flg <>0
+        THEN ffnf2.vhcl_calc_afa_day
+        WHEN vfph_current_depr_type ='standard'
+        THEN coalesce(vfph_standard_depr_day,0)-coalesce(ffnf2.vfph_bonus_day,0)
+        WHEN vfph_current_depr_type = 'additional'
+        THEN vfph_additional_depr_day
+        WHEN vfph_current_depr_type = 'penalty'
+        THEN vfph_penalty_depr_day
+        WHEN vfph_current_depr_type = 'buffer_days'
+        THEN 0
+        END,0) /*-IF (vfph_current_depr_type ='standard',coalesce(vfph_bonus_day,0),0)*/
+        AS vfph_pln_depr_day
+    ,CASE
+        WHEN vfph_implausible_depr_flg = 0 
+        THEN round(
+        CASE
+        WHEN vfph_current_depr_type ='standard'
+        THEN vfph_standard_depr_day
+        WHEN vfph_current_depr_type = 'additional'
+        THEN vfph_additional_depr_day
+        WHEN vfph_current_depr_type = 'penalty'
+        THEN vfph_penalty_depr_day
+        WHEN vfph_current_depr_type = 'buffer_days'
+        THEN 0
+        END
+    +coalesce(vhcl_calc_insurance_day,0)
+    +coalesce(vhcl_calc_interest_day,0)
+    +coalesce(vhcl_calc_kb2_day,0)
+    +coalesce(vhcl_calc_tax_day,0)
+    +coalesce(vhcl_calc_lump_sum_day,0)
+    +coalesce(vfph_stolen_markup,0)
+    +coalesce(vfph_damage_markup,0)
+    -IF (vfph_current_depr_type ='standard',coalesce(vfph_bonus_day,0),0)
+    +IF (vfph_current_depr_type = 'standard',coalesce(vfph_nrk_day,0),0)
+    ,10)
+    ELSE round(     
+    IF(vfph_current_depr_type = 'buffer_days',0,coalesce(vhcl_calc_afa_day,0))
+    +coalesce(vhcl_calc_insurance_day,0)
+    +coalesce(vhcl_calc_interest_day,0)
+    +coalesce(vhcl_calc_kb2_day,0)
+    +coalesce(vhcl_calc_tax_day,0)
+    +coalesce(vhcl_calc_lump_sum_day,0)
+    +coalesce(vfph_stolen_markup,0)
+    +coalesce(vfph_damage_markup,0)
+    +IF (vfph_current_depr_type = 'standard',coalesce(vfph_nrk_day,0),0)
+    ,10) END AS vfph_pln_hc_day
+    ,ffnf2.current_pci_date
+FROM forecast_fleet_nf2 ffnf2
+)
+
+,fleet_base AS (
+SELECT DISTINCT *
+FROM forecast_fleet_nf3
+
+UNION
+
+SELECT DISTINCT *
+FROM act_fleet_base
+) 
+/*##################################### END OF CURRENT/ACTUAL FLEET#######################################*/
+
+,pool_region_data AS(
+SELECT DISTINCT
+    brnc_region_code
+    ,brnc_region
+    ,brnc_pool_code
+    ,brnc_pool_name
+FROM common_shop.br_dim_branches
+WHERE brnc_active_flg = 1
+)
+
+,yield_infleets AS(
+SELECT 
+    'AT' AS country_code
+    ,crs
+    ,substr(date_,1,10) AS infleet_date
+    ,lz AS holding_days
+    ,manc AS OEM
+    ,manc_info AS OEM_info
+    ,model AS vhcl_model
+    ,bbcn
+    ,dist AS pool
+    ,sum(anz) AS infleets
+FROM yield_shop.infleet_at
+GROUP BY
+1,2,3,4,5,6,7,8,9
+
+UNION
+
+SELECT 
+    'BE' AS country_code
+    ,crs
+    ,substr(date_,1,10) AS infleet_date
+    ,lz AS holding_days
+    ,manc AS OEM
+    ,manc_info AS OEM_info
+    ,model AS vhcl_model
+    ,bbcn
+    ,dist AS pool
+    ,sum(anz) AS infleets
+FROM yield_shop.infleet_be
+GROUP BY
+1,2,3,4,5,6,7,8,9
+
+UNION
+
+SELECT 
+    'CH' AS country_code
+    ,crs
+    ,substr(date_,1,10) AS infleet_date
+    ,lz AS holding_days
+    ,manc AS OEM
+    ,manc_info AS OEM_info
+    ,model AS vhcl_model
+    ,bbcn
+    ,dist AS pool
+    ,sum(anz) AS infleets
+FROM yield_shop.infleet_ch
+GROUP BY
+1,2,3,4,5,6,7,8,9
+UNION
+
+SELECT 
+    'DE' AS country_code
+    ,crs
+    ,substr(date_,1,10) AS infleet_date
+    ,lz AS holding_days
+    ,manc AS OEM
+    ,manc_info AS OEM_info
+    ,model AS vhcl_model
+    ,bbcn
+    ,dist AS pool
+    ,sum(anz) AS infleets
+FROM yield_shop.infleet_de
+GROUP BY
+1,2,3,4,5,6,7,8,9
+
+UNION
+
+SELECT 
+    'ES_Mainland' AS country_code
+    ,crs
+    ,substr(date_,1,10) AS infleet_date
+    ,lz AS holding_days
+    ,manc AS OEM
+    ,manc_info AS OEM_info
+    ,model AS vhcl_model
+    ,bbcn
+    ,dist AS pool
+    ,sum(anz) AS infleets
+FROM yield_shop.infleet_es
+WHERE dist NOT IN (41288,42488,42694,44386,44395)
+GROUP BY
+1,2,3,4,5,6,7,8,9
+
+UNION
+
+SELECT 
+    'ES_CI' AS country_code
+    ,crs
+    ,substr(date_,1,10) AS infleet_date
+    ,lz AS holding_days
+    ,manc AS OEM
+    ,manc_info AS OEM_info
+    ,model AS vhcl_model
+    ,bbcn
+    ,dist AS pool
+    ,sum(anz) AS infleets
+FROM yield_shop.infleet_es
+WHERE dist IN (41288,42488,42694,44386,44395)
+GROUP BY
+1,2,3,4,5,6,7,8,9
+
+UNION
+
+SELECT 
+    'FR' AS country_code
+    ,crs
+    ,substr(date_,1,10) AS infleet_date
+    ,lz AS holding_days
+    ,manc AS OEM
+    ,manc_info AS OEM_info
+    ,model AS vhcl_model
+    ,bbcn
+    ,dist AS pool
+    ,sum(anz) AS infleets
+FROM yield_shop.infleet_fr
+GROUP BY
+1,2,3,4,5,6,7,8,9
+
+UNION
+
+SELECT 
+    'GB' AS country_code
+    ,crs
+    ,substr(date_,1,10) AS infleet_date
+    ,lz AS holding_days
+    ,manc AS OEM
+    ,manc_info AS OEM_info
+    ,model AS vhcl_model
+    ,bbcn
+    ,dist AS pool
+    ,sum(anz) AS infleets
+FROM yield_shop.infleet_gb
+GROUP BY
+1,2,3,4,5,6,7,8,9
+
+UNION
+
+SELECT 
+    'IT' AS country_code
+    ,crs
+    ,substr(date_,1,10) AS infleet_date
+    ,lz AS holding_days
+    ,manc AS OEM
+    ,manc_info AS OEM_info
+    ,model AS vhcl_model
+    ,bbcn
+    ,dist AS pool
+    ,sum(anz) AS infleets
+FROM yield_shop.infleet_it
+GROUP BY
+1,2,3,4,5,6,7,8,9
+
+UNION
+
+SELECT 
+    'MC' AS country_code
+    ,crs
+    ,substr(date_,1,10) AS infleet_date
+    ,lz AS holding_days
+    ,manc AS OEM
+    ,manc_info AS OEM_info
+    ,model AS vhcl_model
+    ,bbcn
+    ,dist AS pool
+    ,sum(anz) AS infleets
+FROM yield_shop.infleet_mc
+GROUP BY
+1,2,3,4,5,6,7,8,9
+
+UNION
+
+SELECT 
+    'LU' AS country_code
+    ,crs
+    ,substr(date_,1,10) AS infleet_date
+    ,lz AS holding_days
+    ,manc AS OEM
+    ,manc_info AS OEM_info
+    ,model AS vhcl_model
+    ,bbcn
+    ,dist AS pool
+    ,sum(anz) AS infleets
+FROM yield_shop.infleet_lu
+GROUP BY
+1,2,3,4,5,6,7,8,9
+
+UNION
+
+SELECT 
+    'NL' AS country_code
+    ,crs
+    ,substr(date_,1,10) AS infleet_date
+    ,lz AS holding_days
+    ,manc AS OEM
+    ,manc_info AS OEM_info
+    ,model AS vhcl_model
+    ,bbcn
+    ,dist AS pool
+    ,sum(anz) AS infleets
+FROM yield_shop.infleet_nl
+GROUP BY
+1,2,3,4,5,6,7,8,9
+)
+
+,yield_infleets_base AS(
+SELECT 
+    country_code
+    ,CASE WHEN country_code IN ('ES_CI','ES_Mainland')THEN 'ES' ELSE country_code END AS vhcl_mndt
+    ,vhgr_category_level1 AS fare
+    ,vhgr_category_level2 AS scrs
+    ,replace(crs,' ','') AS crs
+    ,cast(coalesce(
+    coalesce(
+                try(date_parse(infleet_date,'%Y-%m-%d'))
+                ,try(date_parse(infleet_date,'%Y.%m.%d'))
+                ),
+         coalesce(
+                try(date_parse(infleet_date,'%d-%m-%Y'))
+                ,try(date_parse(infleet_date,'%d.%m.%Y'))
+                )
+         ) AS date)AS infleet_date
+    ,cast(date_add('day',holding_days,coalesce(
+    coalesce(
+                try(date_parse(infleet_date,'%Y-%m-%d'))
+                ,try(date_parse(infleet_date,'%Y.%m.%d'))
+                ),
+         coalesce(
+                try(date_parse(infleet_date,'%d-%m-%Y'))
+                ,try(date_parse(infleet_date,'%d.%m.%Y'))
+                )
+         )) AS date) AS defleet_date
+    ,replace(CASE WHEN OEM = 'MBL' THEN 'MB' ELSE OEM END,' ','') AS OEM
+    ,vhcl_model
+    ,bbcn AS vhcl_bbcn_contract
+    ,sum(infleets) AS infleets
+FROM yield_infleets
+    JOIN fleet_shop.ve_dim_vehicle_groups ON yield_infleets.crs = ve_dim_vehicle_groups.vhgr_crs
+    LEFT JOIN pool_region_data ON yield_infleets.pool = pool_region_data.brnc_pool_code
+WHERE 1=1
+    AND (infleets IS NOT NULL AND infleets >0)
+    AND country_code NOT IN ('CA','US')
+    AND
+    coalesce(
+    coalesce(
+                try(date_parse(infleet_date,'%Y-%m-%d'))
+                ,try(date_parse(infleet_date,'%Y.%m.%d'))
+                ),
+         coalesce(
+                try(date_parse(infleet_date,'%d-%m-%Y'))
+                ,try(date_parse(infleet_date,'%d.%m.%Y'))
+                )
+         ) > cast((SELECT max(vctv_date) FROM fleet_shop.ve_fct_pln_hc) AS date)
+GROUP BY
+1,2,3,4,5,6,7,8,9,10
+)
+
+,yield_infleets_base_nf1 AS (
+SELECT *
+FROM yield_infleets_base
+ORDER BY 1,2,3,4,5,6,7,8,9,10,11
+)
+
+,yield_infleets_base_nf2 AS(
+SELECT a.* 
+    ,SUM(infleets) OVER (ORDER BY 1,2,3,4,5,6,7,8,9,10 rows unbounded preceding)-infleets+1 AS "SeqStart"
+    ,SUM(infleets) OVER (ORDER BY 1,2,3,4,5,6,7,8,9,10 rows unbounded preceding) AS "SeqEnd"
+    ,SUM(infleets) OVER () AS "MaxSeqEnd"
+FROM yield_infleets_base_nf1 a
+ORDER BY  1,2,3,4,5,6,7,8,9,10
+)
+
+,dummy_vehicle_numbers AS(
+SELECT vhcl_int_num  FROM UNNEST(sequence(1, 50000, 1)) t(vhcl_int_num)
+    UNION ALL
+SELECT vhcl_int_num  FROM UNNEST(sequence(50001,100000 , 1)) t(vhcl_int_num)
+    UNION ALL
+SELECT vhcl_int_num  FROM UNNEST(sequence(100001,150000 , 1)) t(vhcl_int_num)
+    UNION ALL
+SELECT vhcl_int_num  FROM UNNEST(sequence(150001,200000 , 1)) t(vhcl_int_num)
+    UNION ALL
+SELECT vhcl_int_num  FROM UNNEST(sequence(200001,250000 , 1)) t(vhcl_int_num)
+)
+
+,yield_infleet_base_nf4 AS(
+SELECT 
+    a.vhcl_int_num+90000000 AS vhcl_int_num
+    ,yinf2.*
+FROM dummy_vehicle_numbers a
+    LEFT JOIN yield_infleets_base_nf2 yinf2 ON a.vhcl_int_num >= yinf2.seqstart AND a.vhcl_int_num <= yinf2.seqend
+WHERE 1=1
+    AND country_code IS NOT NULL
+ORDER BY 1 DESC
+)
+
+,vhcl_pln_bonus AS(
+SELECT DISTINCT
+    vp_fct_calculations.vcnt_contract_number AS vhcl_bbcn_contract
+    ,vp_fct_calculations.vclc_internal_typ AS vhcl_type_id
+    ,vp_fct_calculations.vcnt_contract_version
+    ,vp_fct_calculations.vclc_calculation_id
+    ,count(*) AS "count"
+    ,sum(vbns_calculated_value) AS bonus_value
+FROM fleetpurchase_shop.vp_otm_calculation_bonuses
+    JOIN fleetpurchase_shop.vp_fct_calculations 
+    ON vp_otm_calculation_bonuses.vcnt_contract_number = vp_fct_calculations.vcnt_contract_number
+    AND vp_otm_calculation_bonuses.vcnt_contract_version = vp_fct_calculations.vcnt_contract_version
+    AND vp_otm_calculation_bonuses.vclc_calculation_id = vp_fct_calculations.vclc_calculation_id
+    JOIN fleetpurchase_shop.vp_dim_contracts 
+    ON vp_fct_calculations.vcnt_contract_number = vp_dim_contracts.vcnt_contract_number
+    AND vp_fct_calculations.vcnt_contract_version = vp_dim_contracts.vcnt_contract_version
+WHERE 1=1
+    AND vp_dim_contracts.vcnt_relevant_flg = 1
+GROUP BY
+1,2,3,4
+) 
+
+,vhcl_calc_costs_per_volume AS (
+SELECT DISTINCT 
+    vclc_destination_country_code AS country_code_iso
+    ,vclc_delivery_year
+    ,vclc_manufacturer_code AS oem_code
+    ,vp_fct_calculations.vcnt_contract_number AS vhcl_bbcn_contract
+    ,coalesce(vehtyp.grp,vp_fct_calculations.vclc_acriss_code) AS crs
+    , vp_fct_calculations.vclc_internal_typ AS vhcl_type_id
+    ,(vp_fct_calculations.vclc_acquisition_value_3 * CASE WHEN vp_fct_calculations.vclc_ordered_volume = 0 THEN 1 ELSE vp_fct_calculations.vclc_ordered_volume END) AS vhcl_pln_av3
+    ,(vp_fct_calculations.vclc_residual_value1 * CASE WHEN vp_fct_calculations.vclc_ordered_volume = 0 THEN 1 ELSE vp_fct_calculations.vclc_ordered_volume END) AS vhcl_pln_rv1
+    ,(vp_fct_calculations.vclc_extra_costs * CASE WHEN vp_fct_calculations.vclc_ordered_volume = 0 THEN 1 ELSE vp_fct_calculations.vclc_ordered_volume END) AS vhcl_pln_kb2
+    ,(vp_fct_calculations.vclc_dep_total_holding_period * CASE WHEN vp_fct_calculations.vclc_ordered_volume = 0 THEN 1 ELSE vp_fct_calculations.vclc_ordered_volume END) AS vhcl_pln_afa
+    ,(vp_fct_calculations.vclc_hp_tax * CASE WHEN vp_fct_calculations.vclc_ordered_volume = 0 THEN 1 ELSE vp_fct_calculations.vclc_ordered_volume END) AS vhcl_pln_tax
+    ,(vp_fct_calculations.vclc_insurance_hp * CASE WHEN vp_fct_calculations.vclc_ordered_volume = 0 THEN 1 ELSE vp_fct_calculations.vclc_ordered_volume END) AS vhcl_pln_insurance
+    ,(vp_fct_calculations.vclc_interest_hp * CASE WHEN vp_fct_calculations.vclc_ordered_volume = 0 THEN 1 ELSE vp_fct_calculations.vclc_ordered_volume END) AS vhcl_pln_interest
+    ,(vp_fct_calculations.vclc_refurbishment_out_of_cntr *CASE WHEN vp_fct_calculations.vclc_ordered_volume = 0 THEN 1 ELSE vp_fct_calculations.vclc_ordered_volume END) AS vhcl_pln_lump_sum
+    ,(vp_fct_calculations.vclc_hc_hp_wtyre_percent * CASE WHEN vp_fct_calculations.vclc_ordered_volume = 0 THEN 1 ELSE vp_fct_calculations.vclc_ordered_volume END) AS vhcl_pln_fc
+    ,((coalesce(vp_fct_calculations.vclc_holding_period_days,0)-coalesce(vp_fct_calculations.vclc_dep_base_buffer_days,0))* CASE WHEN vp_fct_calculations.vclc_ordered_volume = 0 THEN 1 ELSE vp_fct_calculations.vclc_ordered_volume END) AS vhcl_pln_hd
+    ,coalesce(((vhcl_pln_bonus.bonus_value/vhcl_pln_bonus."count") * CASE WHEN vp_fct_calculations.vclc_ordered_volume = 0 THEN 1 ELSE vp_fct_calculations.vclc_ordered_volume END),0) AS vhcl_pln_bonus_value
+    ,CASE WHEN vp_fct_calculations.vclc_ordered_volume = 0 THEN 1 ELSE vp_fct_calculations.vclc_ordered_volume END AS vclc_ordered_volume
+FROM fleetpurchase_shop.vp_fct_calculations
+    LEFT JOIN fleet_migration.vehtyp ON vp_fct_calculations.mndt_code = vehtyp.fir AND vp_fct_calculations.vclc_internal_typ = vehtyp.typ
+    LEFT JOIN vhcl_pln_bonus ON  vhcl_pln_bonus.vhcl_bbcn_contract = vp_fct_calculations.vcnt_contract_number
+    AND vhcl_pln_bonus.vcnt_contract_version = vp_fct_calculations.vcnt_contract_version
+    AND vhcl_pln_bonus.vclc_calculation_id = vp_fct_calculations.vclc_calculation_id
+    JOIN fleetpurchase_shop.vp_dim_contracts  ON vp_fct_calculations.vcnt_contract_number = vp_dim_contracts.vcnt_contract_number AND vp_dim_contracts.vcnt_contract_version = vp_fct_calculations.vcnt_contract_version
+WHERE vp_dim_contracts.vcnt_relevant_flg = 1
+    AND vp_fct_calculations.vclc_delivery_year >=2020
+) 
+
+/*group total values by vehicle type and bbcn*/               
+,vhcl_calc_costs_per_type_bbcn AS(
+SELECT 
+    vhcl_calc_costs_per_volume.country_code_iso
+    ,vhcl_calc_costs_per_volume.oem_code
+    ,vhcl_calc_costs_per_volume.crs
+    ,vhcl_calc_costs_per_volume.vhcl_type_id
+    ,vhcl_calc_costs_per_volume.vhcl_bbcn_contract
+    ,vhcl_calc_costs_per_volume.vclc_delivery_year
+    ,sum (vhcl_calc_costs_per_volume.vhcl_pln_av3) AS vhcl_pln_av3
+    ,sum (vhcl_calc_costs_per_volume.vhcl_pln_rv1) AS vhcl_pln_rv1
+    ,sum (vhcl_calc_costs_per_volume.vhcl_pln_bonus_value) AS vhcl_pln_bonus_value
+    ,sum (vhcl_calc_costs_per_volume.vclc_ordered_volume) AS vhcl_pln_ordered_volume
+    ,sum (vhcl_calc_costs_per_volume.vhcl_pln_afa) AS vhcl_pln_afa
+    ,sum (vhcl_calc_costs_per_volume.vhcl_pln_kb2) AS vhcl_pln_kb2
+    ,sum (vhcl_calc_costs_per_volume.vhcl_pln_fc) AS vhcl_pln_fc
+    ,sum (vhcl_calc_costs_per_volume.vhcl_pln_tax) AS vhcl_pln_tax
+    ,sum (vhcl_calc_costs_per_volume.vhcl_pln_insurance) AS vhcl_pln_insurance
+    ,sum (vhcl_calc_costs_per_volume.vhcl_pln_interest) AS vhcl_pln_interest
+    ,sum (vhcl_calc_costs_per_volume.vhcl_pln_lump_sum) AS vhcl_pln_lump_sum
+    ,sum (vhcl_calc_costs_per_volume.vhcl_pln_hd) AS vhcl_pln_hd
+FROM vhcl_calc_costs_per_volume
+GROUP BY  
+1,2,3,4,5,6
+) 
+
+/*allocate calculated avg costs to vehicle internal numbers*/             
+,vhcl_calc_costs AS(
+SELECT
+    vhcl_calc_costs_per_type_bbcn.country_code_iso
+    ,vhcl_calc_costs_per_type_bbcn.oem_code
+    ,vhcl_calc_costs_per_type_bbcn.vhcl_bbcn_contract
+    ,vhcl_calc_costs_per_type_bbcn.vclc_delivery_year
+    ,CASE
+    WHEN substr(vhcl_calc_costs_per_type_bbcn.vhcl_bbcn_contract,-1,1) = 'R'
+    THEN 'Risk'
+    WHEN substr(vhcl_calc_costs_per_type_bbcn.vhcl_bbcn_contract,-1,1) = 'L'
+    THEN 'Leasing'
+    ELSE 'Buyback' END AS financing_type
+    ,ve_dim_vehicle_groups.vhgr_category_level2 AS scrs
+    ,vhcl_calc_costs_per_type_bbcn.crs
+    ,((vhcl_calc_costs_per_type_bbcn.vhcl_pln_bonus_value)) AS vhcl_pln_bonus_value_day
+    ,((vhcl_calc_costs_per_type_bbcn.vhcl_pln_afa )) AS vhcl_pln_afa_day
+    ,((vhcl_calc_costs_per_type_bbcn.vhcl_pln_kb2)) AS vhcl_pln_kb2_day
+    ,((vhcl_calc_costs_per_type_bbcn.vhcl_pln_fc)) AS vhcl_pln_fc_day
+    ,((vhcl_calc_costs_per_type_bbcn.vhcl_pln_tax )) AS vhcl_pln_tax_day
+    ,((vhcl_calc_costs_per_type_bbcn.vhcl_pln_insurance )) AS vhcl_pln_insurance_day
+    ,((vhcl_calc_costs_per_type_bbcn.vhcl_pln_interest)) AS vhcl_pln_interest_day
+    ,((vhcl_calc_costs_per_type_bbcn.vhcl_pln_lump_sum)) AS vhcl_pln_lump_sum_day
+    ,(vhcl_calc_costs_per_type_bbcn.vhcl_pln_hd ) AS vhcl_pln_hd
+    ,vhcl_calc_costs_per_type_bbcn.vhcl_pln_ordered_volume
+    ,vhcl_calc_costs_per_type_bbcn.vhcl_pln_hd AS vhcl_ek_fd
+FROM vhcl_calc_costs_per_type_bbcn
+    JOIN fleet_shop.ve_dim_vehicle_groups ON vhcl_calc_costs_per_type_bbcn.crs = ve_dim_vehicle_groups.vhgr_crs
+)
+
+,planned_infleet_costs AS (
+SELECT 
+    yield_infleet_base_nf4.vhcl_int_num
+    ,yield_infleet_base_nf4.country_code
+    ,yield_infleet_base_nf4.vhcl_mndt
+    ,yield_infleet_base_nf4.fare
+    ,yield_infleet_base_nf4.scrs
+    ,yield_infleet_base_nf4.crs
+    ,yield_infleet_base_nf4.infleet_date
+    ,yield_infleet_base_nf4.defleet_date
+    ,yield_infleet_base_nf4.oem
+    ,yield_infleet_base_nf4.vhcl_model
+    ,yield_infleet_base_nf4.vhcl_bbcn_contract
+    ,CASE 
+    WHEN a.vhcl_pln_hd IS NOT NULL THEN 'a'
+    WHEN b.vhcl_pln_hd IS NOT NULL THEN 'b'
+    WHEN c.vhcl_pln_hd IS NOT NULL THEN 'c'
+    WHEN d.vhcl_pln_hd IS NOT NULL THEN 'd'
+    WHEN e.vhcl_pln_hd IS NOT NULL THEN 'e'    
+    ELSE NULL
+    END AS calculation_type
+    ,sum(CASE 
+    WHEN a.vhcl_pln_bonus_value_day IS NOT NULL THEN a.vhcl_pln_bonus_value_day
+    WHEN b.vhcl_pln_bonus_value_day IS NOT NULL THEN b.vhcl_pln_bonus_value_day
+    WHEN c.vhcl_pln_bonus_value_day IS NOT NULL THEN c.vhcl_pln_bonus_value_day
+    WHEN d.vhcl_pln_bonus_value_day IS NOT NULL THEN d.vhcl_pln_bonus_value_day
+    WHEN e.vhcl_pln_bonus_value_day IS NOT NULL THEN e.vhcl_pln_bonus_value_day    
+    ELSE NULL
+    END) AS vhcl_pln_bonus_value_day
+    ,sum(CASE 
+    WHEN a.vhcl_pln_afa_day IS NOT NULL THEN a.vhcl_pln_afa_day
+    WHEN b.vhcl_pln_afa_day IS NOT NULL THEN b.vhcl_pln_afa_day
+    WHEN c.vhcl_pln_afa_day IS NOT NULL THEN c.vhcl_pln_afa_day
+    WHEN d.vhcl_pln_afa_day IS NOT NULL THEN d.vhcl_pln_afa_day
+    WHEN e.vhcl_pln_afa_day IS NOT NULL THEN e.vhcl_pln_afa_day    
+    ELSE NULL
+    END) AS vhcl_pln_afa_day
+    ,sum(CASE 
+    WHEN a.vhcl_pln_kb2_day IS NOT NULL THEN a.vhcl_pln_kb2_day
+    WHEN b.vhcl_pln_kb2_day IS NOT NULL THEN b.vhcl_pln_kb2_day
+    WHEN c.vhcl_pln_kb2_day IS NOT NULL THEN c.vhcl_pln_kb2_day
+    WHEN d.vhcl_pln_kb2_day IS NOT NULL THEN d.vhcl_pln_kb2_day
+    WHEN e.vhcl_pln_kb2_day IS NOT NULL THEN e.vhcl_pln_kb2_day    
+    ELSE NULL
+    END) AS vhcl_pln_kb2_day
+    ,sum(CASE 
+    WHEN a.vhcl_pln_fc_day IS NOT NULL THEN a.vhcl_pln_fc_day
+    WHEN b.vhcl_pln_fc_day IS NOT NULL THEN b.vhcl_pln_fc_day
+    WHEN c.vhcl_pln_fc_day IS NOT NULL THEN c.vhcl_pln_fc_day
+    WHEN d.vhcl_pln_fc_day IS NOT NULL THEN d.vhcl_pln_fc_day
+    WHEN e.vhcl_pln_fc_day IS NOT NULL THEN e.vhcl_pln_fc_day    
+    ELSE NULL
+    END) AS vhcl_pln_fc_day
+    ,sum(CASE 
+    WHEN a.vhcl_pln_tax_day IS NOT NULL THEN a.vhcl_pln_tax_day
+    WHEN b.vhcl_pln_tax_day IS NOT NULL THEN b.vhcl_pln_tax_day
+    WHEN c.vhcl_pln_tax_day IS NOT NULL THEN c.vhcl_pln_tax_day
+    WHEN d.vhcl_pln_tax_day IS NOT NULL THEN d.vhcl_pln_tax_day
+    WHEN e.vhcl_pln_tax_day IS NOT NULL THEN e.vhcl_pln_tax_day    
+    ELSE NULL
+    END) AS vhcl_pln_tax_day
+    ,sum(CASE 
+    WHEN a.vhcl_pln_insurance_day IS NOT NULL THEN a.vhcl_pln_insurance_day
+    WHEN b.vhcl_pln_insurance_day IS NOT NULL THEN b.vhcl_pln_insurance_day
+    WHEN c.vhcl_pln_insurance_day IS NOT NULL THEN c.vhcl_pln_insurance_day
+    WHEN d.vhcl_pln_insurance_day IS NOT NULL THEN d.vhcl_pln_insurance_day
+    WHEN e.vhcl_pln_insurance_day IS NOT NULL THEN e.vhcl_pln_insurance_day    
+    ELSE NULL
+    END) AS vhcl_pln_insurance_day
+    ,sum(CASE 
+    WHEN a.vhcl_pln_interest_day IS NOT NULL THEN a.vhcl_pln_interest_day
+    WHEN b.vhcl_pln_interest_day IS NOT NULL THEN b.vhcl_pln_interest_day
+    WHEN c.vhcl_pln_interest_day IS NOT NULL THEN c.vhcl_pln_interest_day
+    WHEN d.vhcl_pln_interest_day IS NOT NULL THEN d.vhcl_pln_interest_day
+    WHEN e.vhcl_pln_interest_day IS NOT NULL THEN e.vhcl_pln_interest_day    
+    ELSE NULL
+    END) AS vhcl_pln_interest_day
+    ,sum(CASE 
+    WHEN a.vhcl_pln_lump_sum_day IS NOT NULL THEN a.vhcl_pln_lump_sum_day
+    WHEN b.vhcl_pln_lump_sum_day IS NOT NULL THEN b.vhcl_pln_lump_sum_day
+    WHEN c.vhcl_pln_lump_sum_day IS NOT NULL THEN c.vhcl_pln_lump_sum_day
+    WHEN d.vhcl_pln_lump_sum_day IS NOT NULL THEN d.vhcl_pln_lump_sum_day
+    WHEN e.vhcl_pln_lump_sum_day IS NOT NULL THEN e.vhcl_pln_lump_sum_day    
+    ELSE NULL
+    END) AS vhcl_pln_lump_sum_day
+    ,sum(CASE 
+    WHEN a.vhcl_pln_hd IS NOT NULL THEN a.vhcl_pln_hd
+    WHEN b.vhcl_pln_hd IS NOT NULL THEN b.vhcl_pln_hd
+    WHEN c.vhcl_pln_hd IS NOT NULL THEN c.vhcl_pln_hd
+    WHEN d.vhcl_pln_hd IS NOT NULL THEN d.vhcl_pln_hd
+    WHEN e.vhcl_pln_hd IS NOT NULL THEN e.vhcl_pln_hd    
+    ELSE NULL
+    END) AS vhcl_pln_hd
+    ,sum(CASE 
+    WHEN a.vhcl_ek_fd IS NOT NULL THEN a.vhcl_ek_fd
+    WHEN b.vhcl_ek_fd IS NOT NULL THEN b.vhcl_ek_fd
+    WHEN c.vhcl_ek_fd IS NOT NULL THEN c.vhcl_ek_fd
+    WHEN d.vhcl_ek_fd IS NOT NULL THEN d.vhcl_ek_fd
+    WHEN e.vhcl_ek_fd IS NOT NULL THEN e.vhcl_ek_fd    
+    ELSE NULL
+    END) AS vhcl_ek_fd  
+FROM yield_infleet_base_nf4
+    LEFT JOIN vhcl_calc_costs a ON lower(replace(replace(replace(yield_infleet_base_nf4.vhcl_bbcn_contract,'-',''),'/',''),'_',''))  = lower(replace(replace(replace(a.vhcl_bbcn_contract,'-',''),'/',''),'_',''))  AND yield_infleet_base_nf4.crs =a.crs
+    LEFT JOIN vhcl_calc_costs b ON lower(replace(replace(replace(yield_infleet_base_nf4.vhcl_bbcn_contract,'-',''),'/',''),'_',''))  = lower(replace(replace(replace(b.vhcl_bbcn_contract,'-',''),'/',''),'_',''))  AND substr(yield_infleet_base_nf4.crs,1,2) =substr(b.crs,1,2)
+    LEFT JOIN vhcl_calc_costs c ON lower(replace(replace(replace(yield_infleet_base_nf4.vhcl_bbcn_contract,'-',''),'/',''),'_',''))  = lower(replace(replace(replace(c.vhcl_bbcn_contract,'-',''),'/',''),'_',''))  AND yield_infleet_base_nf4.scrs = c.scrs
+    LEFT JOIN vhcl_calc_costs d ON yield_infleet_base_nf4.vhcl_mndt = d.country_code_iso AND yield_infleet_base_nf4.oem = d.oem_code AND yield_infleet_base_nf4.scrs = d.scrs 
+    AND if(year(infleet_date) = d.vclc_delivery_year,year(infleet_date),year(infleet_date)-1) = d.vclc_delivery_year AND yield_infleet_base_nf4.vhcl_bbcn_contract = d.financing_type
+    LEFT JOIN vhcl_calc_costs e ON yield_infleet_base_nf4.vhcl_mndt = e.country_code_iso AND yield_infleet_base_nf4.oem = e.oem_code AND coalesce(try(substr(yield_infleet_base_nf4.crs,1,1) = substr(e.crs,1,1)),yield_infleet_base_nf4.scrs = e.scrs) 
+    AND if(year(infleet_date) = e.vclc_delivery_year,year(infleet_date),year(infleet_date)-1) = e.vclc_delivery_year
+GROUP BY
+1,2,3,4,5,6,7,8,9,10,11,12
+) 
+
+,planned_infleet_costs_nf2 AS(
+SELECT 
+    vhcl_int_num
+    ,country_code
+    ,vhcl_mndt
+    ,fare
+    ,scrs
+    ,crs
+    ,infleet_date
+    ,defleet_date
+    ,oem
+    ,vhcl_model
+    ,vhcl_bbcn_contract
+    ,coalesce(calculation_type,'Fallback') AS calculation_type
+    ,coalesce(vhcl_pln_bonus_value_day/vhcl_ek_fd,0) AS vhcl_pln_bonus_value_day
+    ,coalesce(vhcl_pln_afa_day/vhcl_ek_fd,0) AS vhcl_pln_afa_day
+    ,coalesce(vhcl_pln_kb2_day/vhcl_ek_fd,0) AS vhcl_pln_kb2_day
+    ,coalesce(vhcl_pln_fc_day/vhcl_ek_fd,0) AS vhcl_pln_fc_day
+    ,coalesce(vhcl_pln_tax_day/vhcl_ek_fd,0) AS vhcl_pln_tax_day
+    ,coalesce(vhcl_pln_insurance_day/vhcl_ek_fd,0) AS vhcl_pln_insurance_day
+    ,coalesce(vhcl_pln_interest_day/vhcl_ek_fd,0) AS vhcl_pln_interest_day
+    ,coalesce(vhcl_pln_lump_sum_day/vhcl_ek_fd,0) AS vhcl_pln_lump_sum_day   
+FROM planned_infleet_costs
+)
+
+,planned_infleets_days AS(
+SELECT 
+    planned_infleet_costs_nf2.*
+    ,date_diff('day',infleet_date,ge_dim_dates.date_date) AS vhcl_current_run_days
+    ,cast(ge_dim_dates.date_date AS date) AS vctv_date
+FROM planned_infleet_costs_nf2,common_shop.ge_dim_dates
+WHERE ge_dim_dates.date_date
+BETWEEN cast(planned_infleet_costs_nf2.infleet_date AS date) 
+AND cast(CASE WHEN planned_infleet_costs_nf2.defleet_date IS NOT NULL THEN planned_infleet_costs_nf2.defleet_date
+ELSE NULL END AS date)
+)
+
+,planned_infleets_output AS(
+SELECT DISTINCT
+    'infleets_fleet' AS source
+    ,vctv_date
+    ,NULL AS brnc_mndt_code
+    ,country_code AS brnc_mndt_iso
+    ,NULL AS pci_brnc_code
+    ,vhcl_int_num
+    ,vhcl_model
+    ,NULL AS mndt_code
+    ,vhcl_mndt AS vhcl_mndt_iso
+    ,vhcl_bbcn_contract    
+    ,CASE 
+        WHEN length (vhcl_bbcn_contract) >= 14 
+        THEN (CASE WHEN substr(vhcl_bbcn_contract,-1,1) = 'R'
+            THEN 'Risk'
+            WHEN substr(vhcl_bbcn_contract,-1,1) = 'L'
+            THEN 'Leasing'
+            ELSE 'Buyback' END)
+        WHEN vhcl_bbcn_contract = 'Risk'
+        THEN 'Risk'
+        WHEN vhcl_bbcn_contract = 'Leasing'
+        THEN 'Leasing'
+        WHEN vhcl_bbcn_contract = 'Buyback'
+        THEN 'Buyback'
+        ELSE 'Unknown' END AS vfph_risk_type
+    ,NULL AS vhcl_type_id
+    ,CASE
+        WHEN fare = 'C&B' AND substr(crs,-1,1) IN ('C','E')
+        THEN 'E'
+        WHEN fare = 'C&B' AND substr(crs,-1,1) IN ('H')
+        THEN 'H'
+        WHEN fare = 'V&T' AND substr(crs,-1,1) IN ('E')
+        THEN 'E'
+        ELSE 'C' END AS fuel_type_code
+    ,OEM AS vhmd_ref_man_code
+    ,fare AS vhgr_category_level1
+    ,scrs AS vhcl_category_level2
+    ,NULL AS vhgr_sub_category_level1
+    ,crs AS vhcl_crs
+    ,infleet_date AS first_vhcl_pci_day
+    ,defleet_date AS vhcl_defleet_date
+    ,vhcl_current_run_days
+        ,CASE
+        WHEN lower(
+            CASE 
+                WHEN length (vhcl_bbcn_contract) >= 14 
+                THEN (CASE WHEN substr(vhcl_bbcn_contract,-1,1) = 'R'
+                    THEN 'Risk'
+                    WHEN substr(vhcl_bbcn_contract,-1,1) = 'L'
+                    THEN 'Leasing'
+                    ELSE 'Buyback' END)
+                WHEN vhcl_bbcn_contract = 'Risk'
+                THEN 'Risk'
+                WHEN vhcl_bbcn_contract = 'Leasing'
+                THEN 'Leasing'
+                WHEN vhcl_bbcn_contract = 'Buyback'
+                THEN 'Buyback'
+                ELSE 'Unknown' END) <> lower('leasing') AND fare = 'C&B' AND vhcl_mndt = 'DE'
+        THEN 133.71/date_diff('day',infleet_date,defleet_date)
+        WHEN lower(
+            CASE 
+                WHEN length (vhcl_bbcn_contract) >= 14 
+                THEN (CASE WHEN substr(vhcl_bbcn_contract,-1,1) = 'R'
+                    THEN 'Risk'
+                    WHEN substr(vhcl_bbcn_contract,-1,1) = 'L'
+                    THEN 'Leasing'
+                    ELSE 'Buyback' END)
+                WHEN vhcl_bbcn_contract = 'Risk'
+                THEN 'Risk'
+                WHEN vhcl_bbcn_contract = 'Leasing'
+                THEN 'Leasing'
+                WHEN vhcl_bbcn_contract = 'Buyback'
+                THEN 'Buyback'
+                ELSE 'Unknown' END) <> lower('leasing') AND fare = 'V&T' AND vhcl_mndt = 'DE'
+        THEN 191.90/date_diff('day',infleet_date,defleet_date) 
+        ELSE 0
+        END AS vhcl_nrk_day
+    ,vhcl_pln_bonus_value_day
+    ,vhcl_pln_afa_day
+    ,vhcl_pln_fc_day
+    ,vhcl_pln_kb2_day
+    ,vhcl_pln_tax_day
+    ,vhcl_pln_insurance_day
+    ,vhcl_pln_interest_day
+    ,vhcl_pln_lump_sum_day
+    ,'standard'AS vfph_current_depr_type
+    ,0 AS vfph_implausible_depr_flg
+    ,calculation_type
+FROM planned_infleets_days
+WHERE 1=1
+    AND vctv_date <=  cast(date_add('month',14,current_date) AS date)
+)
+/*##################################### END OF INFLEETS FLEET#######################################*/
+
+,fleet_hc_forecast_output_base_nf1 AS(
+SELECT 
+    source
+    ,vctv_date
+    ,brnc_mndt_iso
+    ,vhcl_int_num
+    ,vhcl_model
+    ,vhcl_mndt_iso
+    ,vhcl_bbcn_contract
+    ,vfph_risk_type
+    ,fuel_type_code
+    ,vhmd_ref_man_code
+    ,vhgr_category_level1
+    ,vhcl_category_level2
+    ,vhcl_crs
+    ,first_vhcl_pci_day
+    ,vhcl_defleet_date
+    ,vhcl_current_run_days
+    ,vhcl_pln_bonus_value_day AS vhcl_calc_bonus_value_day
+    ,vhcl_pln_fc_day AS vhcl_calc_fc_day
+    ,vhcl_pln_afa_day AS vfph_pln_depr_day
+    ,vhcl_pln_kb2_day AS vhcl_calc_kb2_day
+    ,vhcl_pln_tax_day AS vhcl_calc_tax_day
+    ,vhcl_pln_insurance_day AS vhcl_calc_insurance_day
+    ,vhcl_pln_interest_day AS vhcl_calc_interest_day
+    ,vhcl_nrk_day    
+    ,coalesce(vhcl_pln_lump_sum_day,0) AS vhcl_calc_lump_sum_day
+    ,NULL AS vfph_stolen_markup
+    ,NULL AS vfph_damage_markup       
+    ,vfph_current_depr_type
+    ,vfph_implausible_depr_flg
+    ,NULL vfph_pln_hc_day
+    ,calculation_type
+FROM planned_infleets_output
+
+    UNION ALL
+    
+SELECT 
+    source
+    ,vctv_date
+    ,brnc_mndt_iso
+    ,vhcl_int_num
+    ,vhcl_model
+    ,vhcl_mndt_iso
+    ,vhcl_bbcn_contract
+    ,vfph_risk_type
+    ,fuel_type_code
+    ,vhmd_ref_man_code
+    ,vhgr_category_level1
+    ,vhcl_category_level2
+    ,vhcl_crs
+    ,first_vhcl_pci_day
+    ,cast(
+        CASE 
+            WHEN cast(vhcl_grounded_date AS date) = cast('1899-12-31' AS date)
+            THEN vhcl_defleet_plan_date
+    ELSE last_vhcl_pci_day END AS date)AS vhcl_defleet_date
+    ,vhcl_current_run_days
+    ,vhcl_calc_bonus_value_day
+    ,vhcl_calc_fc_day    
+    ,vfph_pln_depr_day
+    ,vhcl_calc_kb2_day
+    ,vhcl_calc_tax_day
+    ,vhcl_calc_insurance_day
+    ,vhcl_calc_interest_day
+    ,vfph_nrk_day AS vhcl_nrk_day    
+    ,coalesce(vhcl_calc_lump_sum_day,0) AS vhcl_calc_lump_sum_day
+    ,vfph_stolen_markup
+    ,vfph_damage_markup
+    ,vfph_current_depr_type
+    ,vfph_implausible_depr_flg
+    ,vfph_pln_hc_day
+    ,'act_fleet' AS calculation_type    
+FROM fleet_base    
+) 
+
+,fleet_hc_forecast_output_base_nf2 AS(
+SELECT
+    source
+    ,vctv_date
+    ,brnc_mndt_iso
+    ,vhcl_int_num
+    ,vhcl_model
+    ,vhcl_mndt_iso
+    ,vhcl_bbcn_contract
+    ,vfph_risk_type
+    ,fuel_type_code
+    ,vhmd_ref_man_code
+    ,vhgr_category_level1
+    ,vhcl_category_level2
+    ,vhcl_crs
+    ,first_vhcl_pci_day
+    ,vhcl_defleet_date
+    ,vhcl_current_run_days
+    ,vhcl_calc_bonus_value_day
+    ,vhcl_calc_fc_day    
+    ,vfph_pln_depr_day
+    ,vhcl_calc_kb2_day
+    ,vhcl_calc_tax_day
+    ,vhcl_calc_insurance_day
+    ,vhcl_calc_interest_day
+    ,vhcl_calc_lump_sum_day
+    ,vhcl_nrk_day    
+    ,CASE
+        WHEN vfph_stolen_markup IS NOT NULL
+        THEN vfph_stolen_markup
+        WHEN vfph_stolen_markup =0
+        THEN 0
+        ELSE round(SUM(vfph_stolen_markup) OVER (PARTITION BY vhcl_mndt_iso,vhgr_category_level1,vhcl_category_level2) / NULLIF(COUNT(vfph_damage_markup) OVER (PARTITION BY vhcl_mndt_iso,vhgr_category_level1,vhcl_category_level2),0),4)
+    END AS vfph_stolen_markup
+    ,CASE
+        WHEN vfph_damage_markup IS NOT NULL
+        THEN vfph_damage_markup
+        WHEN vfph_damage_markup =0
+        THEN 0
+        ELSE round(SUM(vfph_damage_markup) OVER (PARTITION BY vhcl_mndt_iso,vhgr_category_level1,vhcl_category_level2) / NULLIF(COUNT(vfph_damage_markup) OVER (PARTITION BY vhcl_mndt_iso,vhgr_category_level1,vhcl_category_level2),0),4)
+    END AS vfph_damage_markup     
+    ,vfph_current_depr_type
+    ,vfph_implausible_depr_flg
+    ,vfph_pln_hc_day
+    ,calculation_type  
+FROM fleet_hc_forecast_output_base_nf1
+)
+
+,fleet_hc_forecast_output_base_nf3 AS (
+SELECT
+    source
+    ,vctv_date
+    ,brnc_mndt_iso
+    ,vhcl_int_num
+    ,vhcl_model
+    ,vhcl_mndt_iso
+    ,vhcl_bbcn_contract
+    ,vfph_risk_type
+    ,fuel_type_code
+    ,vhmd_ref_man_code
+    ,vhgr_category_level1
+    ,vhcl_category_level2
+    ,vhcl_crs
+    ,first_vhcl_pci_day
+    ,vhcl_defleet_date
+    ,vhcl_current_run_days
+    ,vhcl_calc_bonus_value_day
+    ,vhcl_calc_fc_day    
+    ,vfph_pln_depr_day
+    ,vhcl_calc_kb2_day
+    ,vhcl_calc_tax_day
+    ,vhcl_calc_insurance_day
+    ,vhcl_calc_interest_day
+    ,vhcl_calc_lump_sum_day
+    ,vhcl_nrk_day
+    ,vfph_stolen_markup
+    ,vfph_damage_markup    
+    ,vfph_current_depr_type
+    ,vfph_implausible_depr_flg
+    ,CASE
+        WHEN source = 'infleets_fleet'
+        THEN 
+            coalesce(vfph_pln_depr_day,0)
+            +coalesce(vhcl_calc_kb2_day,0)
+            +coalesce(vhcl_calc_tax_day,0)
+            +coalesce(vhcl_calc_insurance_day,0)
+            +coalesce(vhcl_calc_interest_day,0)
+            +coalesce(vhcl_calc_lump_sum_day,0)
+            +coalesce(vfph_stolen_markup,0)
+            +coalesce(vfph_damage_markup,0)
+            +coalesce(vhcl_nrk_day,0)            
+        ELSE vfph_pln_hc_day 
+    END AS vfph_pln_hc_day
+    ,calculation_type
+FROM fleet_hc_forecast_output_base_nf2
+)
+
+SELECT 
+    *
+FROM fleet_hc_forecast_output_base_nf3
+WHERE 1=1
